@@ -1,2 +1,3 @@
-# image89
-Web application and CLI tool to generate math images.
+# Image89
+
+It is a web application and CLI tool to generate math images.

@@ -14,13 +14,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
-          go-version: "1.27.2"
-          cache: true
+          # The toolchain directive of go.mod, the same Go as in Dockerfile.
+          go-version-file: go.mod
+          # setup-go v7 keys the module cache by go.mod unless told otherwise.
+          cache-dependency-path: go.sum
 
       - name: Build
         run: make build
@@ -28,17 +30,25 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Not `make test`: it runs `make lint`, which needs golangci-lint and
+      # govulncheck installed locally; both run as separate steps below.
       - name: Test
         run: go test -race -cover ./...
 
+      # staticcheck and gosec are enabled in .golangci.yml (default: all),
+      # so they run here and need no separate steps.
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.14
+          version: v2.14.0
 
       - name: Vulnerability scan
         continue-on-error: true
         uses: golang/govulncheck-action@v1
         with:
+          # The exact toolchain of go.mod: "1.27" takes the latest patch release and
+          # could hide stdlib vulnerabilities of the one the binary is built with.
+          # Not go-version-file: with GOTOOLCHAIN=local exported by setup-go above
+          # it reads the go directive, and the default go-version-input overrides it.
           go-version-input: "1.27.2"
           go-package: ./...

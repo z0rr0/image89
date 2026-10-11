@@ -41,6 +41,9 @@ Build and test commands:
 Gotchas:
 
 - `docs/config.toml` must stay equal to `config.Default()`; `TestLoadDocsConfig` compares them.
+- The Go version lives in three places: `toolchain` in `go.mod` (CI reads it via `go-version-file`),
+  `GOLANG_VERSION` in `Dockerfile` and `go-version-input` of govulncheck in `.github/workflows/go.yml`.
+  Bump them together.
 - go-toml flattens errors returned by `UnmarshalText`: `errors.Is` sees only `config.ErrDecode`, not
   `ErrInvalidColor` or `ErrNegativeDuration`. Test those sentinels on the types directly.
 

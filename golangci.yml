@@ -1,0 +1,82 @@
+version: "2"
+run:
+  go: "1.27"
+  timeout: 3m
+  tests: true
+linters:
+  default: all
+  disable:
+    - depguard
+    - err113
+    # A major rename keeps the old name as a deprecated alias and ships the new
+    # one as a separate linter, which `default: all` switches back on by itself.
+    # Both names stay listed, as for wsl/wsl_v5 below.
+    - exhaustruct
+    - exhaustruct_v5
+    - godox
+    # Deprecated alias of gomodguard_v2; only the alias is disabled, to silence
+    # its warning. gomodguard_v2 stays enabled and, with no allow/block list
+    # configured, never fires — exactly what gomodguard did before.
+    - gomodguard
+    - mnd
+    - nilnil
+    - nlreturn
+    - noinlineerr
+    - varnamelen
+    - wrapcheck
+    - wsl
+    - wsl_v5
+  settings:
+    govet:
+      enable-all: true
+      # fieldalignment reorders config structs away from their TOML section
+      # layout for a memory win that is irrelevant to this I/O-bound service.
+      disable:
+        - fieldalignment
+    recvcheck:
+      # UnmarshalText must take a pointer to assign, while String/Timed stay on
+      # the value so fmt verbs work on a config.Duration copy. The stdlib mixes
+      # the same way (netip.Addr, time.Time); only Marshal* is excluded builtin.
+      exclusions:
+        - "*.UnmarshalText"
+    goconst:
+      # Test tables repeat the same literal by design, and counting those
+      # occurrences also drags production strings over the threshold.
+      ignore-tests: true
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+    lll:
+      line-length: 160
+    cyclop:
+      max-complexity: 20
+    gocyclo:
+      min-complexity: 20
+    funlen:
+      statements: 50
+      lines: 150
+  exclusions:
+    generated: lax
+    paths:
+      - docs
+    rules:
+      # run.tests is on so errcheck guards the test files too. These three have
+      # no useful reading there and are the only ones that fire.
+      - path: _test\.go
+        linters:
+          # Tests are white-box on purpose: they reach for s.srv, defaultTimeout,
+          # sanitizeRequestID. An external _test package cannot see any of that.
+          - testpackage
+          # Several tests swap the global slog default, so t.Parallel() would make
+          # them race each other rather than run faster.
+          - paralleltest
+          # Response bodies are closed by the closeBody helper via t.Cleanup, one
+          # call away from the request; bodyclose does not follow the indirection.
+          - bodyclose
+output:
+  formats:
+    tab:
+      path: stdout
+      print-linter-name: true
+      colors: true

@@ -1,0 +1,18 @@
+services:
+  image89:
+    # Built by `make docker` (host arch) or pulled from Docker Hub, where
+    # `make docker-push` publishes a linux/amd64 + linux/arm64 manifest list.
+    image: z0rr0/image89:latest
+    container_name: image89
+    command: ["-s", "-c", "/data/config.toml"]
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.toml:/data/config.toml:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped

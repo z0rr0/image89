@@ -12,22 +12,37 @@ This document provides information for AI agents working on the **Image89** code
 
 ```
 .
-├── .golangci.yml  # linter and formatter configuration
-├── README.md      # project overview, usage and configuration reference
-└── AGENTS.md      # this guide
+├── image89.go           # main: flags, version, logger, config loading, mode selection
+├── internal/config/     # Config, Default(), Load(path), presets, Duration, Color, validation
+├── docs/config.toml     # annotated config, every value equals config.Default()
+├── Makefile             # build, test, lint, dist, docker targets
+├── Dockerfile           # multi-stage image z0rr0/image89
+├── docker-compose.yml   # service with /health healthcheck
+├── .github/workflows/   # CI: build, vet, test, golangci-lint, govulncheck
+├── .golangci.yml        # linter and formatter configuration
+├── README.md            # project overview, usage and configuration reference
+└── AGENTS.md            # this guide
 ```
 
 ## Build & Development Workflow
 
 Build and test commands:
 
+- `make build` - Build `./image89` with version info from git
+- `make test` - Run `make lint` (gofmt, vet, golangci-lint, govulncheck) and tests
 - `go fmt ./...`
 - `go vet ./...`
 - `golangci-lint fmt ./...` - Format code and group imports (gofmt + gci)
 - `golangci-lint run ./...`
 - `go test -race -cover ./...`
-- `go test -v -race ./cfg` - Run tests for specific package
-- `go test -v -run TestGroupValidate ./cfg` - Run specific test
+- `go test -v -race ./internal/config` - Run tests for specific package
+- `go test -v -run TestValidate ./internal/config` - Run specific test
+
+Gotchas:
+
+- `docs/config.toml` must stay equal to `config.Default()`; `TestLoadDocsConfig` compares them.
+- go-toml flattens errors returned by `UnmarshalText`: `errors.Is` sees only `config.ErrDecode`, not
+  `ErrInvalidColor` or `ErrNegativeDuration`. Test those sentinels on the types directly.
 
 ## Code Style Conventions
 

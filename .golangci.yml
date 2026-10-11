@@ -49,6 +49,17 @@ linters:
               desc: use errors from the standard library
     exhaustive:
       default-signifies-exhaustive: true
+    recvcheck:
+      # UnmarshalText must take a pointer to assign, while String and other
+      # methods of config.Duration and config.Color stay on the value. The
+      # stdlib mixes the same way (time.Time); only Marshal* is excluded builtin.
+      exclusions:
+        - "*.UnmarshalText"
+    paralleltest:
+      # t.Parallel() is used only in isolated tests. Tests that touch the
+      # global slog logger, the working directory, env or timing stay
+      # sequential; misuse of t.Parallel() is still reported.
+      ignore-missing: true
     govet:
       enable-all: true
       # Field order is chosen for readability, not for padding savings.

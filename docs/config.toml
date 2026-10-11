@@ -1,0 +1,93 @@
+# Image89 configuration. Every value below equals the built-in default, so
+# a real config only needs the keys it changes: missing keys keep defaults,
+# unknown keys are an error. Durations are Go duration strings ("10s", "1m30s").
+# Colors are "#rrggbb". Usage: image89 -c config.toml (CLI or with -s).
+
+[server]
+addr = ":8080"
+# Debug lowers the log level and adds source locations.
+debug = false
+read_timeout = "10s"
+# Must not exceed read_timeout.
+read_header_timeout = "5s"
+# Must exceed limits.queue_timeout + limits.timeout: a request may wait for a
+# slot and generate until its deadline before the response is written.
+write_timeout = "60s"
+idle_timeout = "60s"
+shutdown_timeout = "10s"
+# Cache-Control max-age of images; "0s" disables the header.
+cache_max_age = "1h"
+
+[limits]
+# Max width × height of one image (4096 × 4096).
+max_pixels = 16777216
+# Images generated at the same time; a slot is held until the response is written.
+max_concurrent = 2
+# Requests waiting for a slot; more get 503 at once.
+max_queued = 8
+# Max wait for a slot; "0s" means no waiting.
+queue_timeout = "2s"
+# Max time to generate and encode one image after a slot is taken.
+timeout = "30s"
+# Goroutines per image; 0 means GOMAXPROCS.
+workers = 0
+# Upper bound for types.*.iterations.
+max_iterations = 4096
+# Upper bound for types.*.depth.
+max_depth = 8
+
+# Presets. width and height of the pixel fractals set the visible area of the
+# complex plane: the image shows the whole area at any aspect ratio.
+# line_width and padding are fractions of min(image width, image height).
+
+[types.mandelbrot]
+iterations = 256
+center = [-0.75, 0.0]
+width = 3.5
+height = 2.5
+# The first color also paints the set itself.
+palette = ["#000000", "#000764", "#206bcb", "#edffff", "#ffaa00"]
+
+[types.julia]
+iterations = 256
+# The constant c of z² + c as [re, im].
+c = [-0.8, 0.156]
+width = 3.2
+height = 2.4
+palette = ["#000000", "#1a0b3d", "#7b2cbf", "#ff6d00", "#ffffff"]
+
+[types.newton]
+iterations = 64
+# Degree n of zⁿ − 1, from 3 to 8; colors needs at least n entries.
+degree = 3
+width = 4.0
+height = 4.0
+epsilon = 1e-06
+colors = ["#e63946", "#2a9d8f", "#457b9d", "#f4a261", "#8338ec", "#06d6a0", "#ffbe0b", "#ff006e"]
+background = "#000000"
+
+[types.sierpinski]
+depth = 7
+padding = 0.05
+color = "#1d3557"
+background = "#ffffff"
+
+[types.koch]
+depth = 5
+line_width = 0.004
+padding = 0.05
+color = "#1d3557"
+background = "#ffffff"
+
+[types.lissajous]
+# x = sin(a·t + delta), y = sin(b·t); a and b from 1 to 32.
+a = 3
+b = 2
+# π/2
+delta = 1.5707963267948966
+# Number of curve points: 0 chooses it from the image size, otherwise 16..65536.
+points = 0
+line_width = 0.004
+padding = 0.05
+color = "#e63946"
+background = "#ffffff"

@@ -1,0 +1,118 @@
+version: "2"
+
+run:
+  # The Go version is taken from go.mod, so it is not duplicated here.
+  timeout: 3m
+  modules-download-mode: readonly
+
+linters:
+  default: all
+  disable:
+    # Deprecated aliases that `default: all` still turns on with a warning.
+    # Their successors are listed separately: exhaustruct_v5 and wsl_v5 are
+    # disabled below, gomodguard_v2 stays on and is a no-op without lists.
+    - exhaustruct
+    - gomodguard
+    - wsl
+    # Requires every struct field to be set explicitly, too noisy for
+    # options and config structs.
+    - exhaustruct_v5
+    # Sentinel errors wrapped with errors.Join (see AGENTS.md) are the
+    # convention; these two push towards a different wrapping style.
+    - err113
+    - wrapcheck
+    # TODO/FIXME notes are fine while the project is young.
+    - godox
+    # Image math is full of literal sizes and coefficients.
+    - mnd
+    # `return nil, nil` is a valid "not found" result.
+    - nilnil
+    # Blank-line style only.
+    - nlreturn
+    - wsl_v5
+    # `if err := f(); err != nil` is idiomatic Go.
+    - noinlineerr
+    # White-box tests in the same package are allowed.
+    - testpackage
+    # Short names (x, y, w, h, i) are natural in image code.
+    - varnamelen
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: "log$"
+              desc: use log/slog
+            - pkg: "math/rand$"
+              desc: use math/rand/v2
+            - pkg: github.com/pkg/errors
+              desc: use errors from the standard library
+    exhaustive:
+      default-signifies-exhaustive: true
+    govet:
+      enable-all: true
+      # Field order is chosen for readability, not for padding savings.
+      disable:
+        - fieldalignment
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    sloglint:
+      static-msg: true
+      key-naming-case: snake
+      forbidden-keys:
+        - time
+        - level
+        - msg
+        - source
+    tagliatelle:
+      case:
+        rules:
+          json: snake
+    lll:
+      line-length: 160
+    cyclop:
+      max-complexity: 20
+    gocyclo:
+      min-complexity: 20
+    funlen:
+      statements: 50
+      lines: 150
+  exclusions:
+    rules:
+      # Table-driven tests are long and repeat literals by design.
+      - path: _test\.go
+        linters:
+          - dupl
+          - funlen
+          - goconst
+          - maintidx
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+  settings:
+    gci:
+      # Standard library, then third-party, then this module (AGENTS.md).
+      sections:
+        - standard
+        - default
+        - localmodule
+    gofmt:
+      simplify: true
+      rewrite-rules:
+        - pattern: "interface{}"
+          replacement: "any"
+
+issues:
+  # Report everything, not just the first few hits per linter.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+output:
+  formats:
+    tab:
+      path: stdout
+      print-linter-name: true
+      colors: true

@@ -1,5 +1,9 @@
 # Image89
 
+![Go](https://github.com/z0rr0/image89/workflows/Go/badge.svg)
+![Version](https://img.shields.io/github/tag/z0rr0/image89.svg)
+![License](https://img.shields.io/github/license/z0rr0/image89.svg)
+
 It is a web application and CLI tool to generate math images.
 
 > **In development.** The flags and endpoints below describe the target behavior;

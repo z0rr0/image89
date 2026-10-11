@@ -42,8 +42,9 @@ jobs:
         with:
           version: v2.14.0
 
+      # A found vulnerability fails the build: bump the Go toolchain or the
+      # affected module (see AGENTS.md for where the Go version lives).
       - name: Vulnerability scan
-        continue-on-error: true
         uses: golang/govulncheck-action@v1
         with:
           # The exact toolchain of go.mod: "1.27" takes the latest patch release and

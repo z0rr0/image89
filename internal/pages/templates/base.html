@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>{{block "title" .}}Image89{{end}}</title>
+<style>
+  :root { color-scheme: light dark; --muted: #6b7280; --line: #d1d5db; --accent: #1d4ed8; }
+  @media (prefers-color-scheme: dark) { :root { --muted: #9ca3af; --line: #374151; --accent: #93c5fd; } }
+  body { margin: 0 auto; max-width: 52rem; padding: 0 1rem; font: 1.05rem/1.6 system-ui, sans-serif; }
+  header, footer { display: flex; gap: 1rem; flex-wrap: wrap; padding: 1rem 0; }
+  header { border-bottom: 1px solid var(--line); }
+  footer { border-top: 1px solid var(--line); margin-top: 2rem; color: var(--muted); font-size: 0.9rem; }
+  a { color: var(--accent); }
+  header a { font-weight: 600; text-decoration: none; }
+  h1 { line-height: 1.2; }
+  img { max-width: 100%; height: auto; border: 1px solid var(--line); }
+  math[display="block"] { margin: 1rem 0; font-size: 1.15rem; }
+  code { font-size: 0.95em; }
+  .figures { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1.5rem; padding: 0; list-style: none; }
+  .figures h2 { margin: 0.5rem 0 0.25rem; font-size: 1.15rem; }
+  .figures p { margin: 0; }
+</style>
+</head>
+<body>
+<header><a href="/">Image89</a></header>
+<main>
+{{block "content" .}}{{end}}
+</main>
+<footer><span>Image89 {{.Version}}</span><a href="/version">version</a><a href="/health">health</a></footer>
+</body>
+</html>

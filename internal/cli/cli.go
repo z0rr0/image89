@@ -21,8 +21,14 @@ import (
 // defaultName is the output file name used without -o, before the extension.
 const defaultName = "output"
 
-// ErrOutputExists means the output file already exists; it is left untouched.
-var ErrOutputExists = errors.New("output file already exists")
+// Sentinel errors of Run.
+var (
+	// ErrOutputExists means the output file already exists; it is left untouched.
+	ErrOutputExists = errors.New("output file already exists")
+	// ErrInvalidOutput means the output name has no file name: it ends with a
+	// path separator, or it is a bare volume such as "C:" on Windows.
+	ErrInvalidOutput = errors.New("output name has no file name")
+)
 
 // Options are the image options of the command line.
 type Options struct {
@@ -57,7 +63,8 @@ func OutputName(name string, f encode.Format) string {
 }
 
 // Run renders the image described by opts into a new file named by
-// OutputName. The request is validated before the file is created. An
+// OutputName. The request and the output name are validated before the file
+// is created; a name without a file name, such as "dir/", gives ErrInvalidOutput. An
 // existing file gives ErrOutputExists and is not changed; if rendering,
 // writing or closing fails, including a done ctx, the new file is removed.
 func Run(ctx context.Context, r Renderer, opts Options) error {
@@ -72,7 +79,17 @@ func run(ctx context.Context, r Renderer, opts Options, open opener) error {
 	if err = r.Validate(req); err != nil {
 		return err
 	}
+	// "dir/" (or "C:" on Windows) would otherwise become the hidden file
+	// "dir/.png"; an empty name means the default one.
+	if out := opts.Output; out != "" {
+		if _, file := filepath.Split(out); file == "" {
+			return errors.Join(ErrInvalidOutput, fmt.Errorf("%q", out))
+		}
+	}
 
+	// The same name is opened, removed and logged, so open and remove resolve
+	// it by the same OS rules; see createFile. Removal goes by path, so another
+	// process changing the directories or symlinks in between is not guarded.
 	name := OutputName(opts.Output, req.Format)
 	f, err := open(name)
 	if err != nil {
@@ -124,9 +141,14 @@ func request(opts Options) (render.Request, error) {
 }
 
 // createFile creates a new file and fails with fs.ErrExist if it exists.
+//
+// G302: an image is an ordinary user file, readable by others like the output
+// of any CLI tool. G304: the path is the user's own -o flag. It is used as is,
+// without filepath.Clean: Clean is lexical and ignores symlinks, so "alias/../x"
+// would be created at one place and removed by run at another, which the OS
+// resolves through the symlink.
 func createFile(name string) (io.WriteCloser, error) {
-	// G302: an image is an ordinary user file, readable by others like the output of any CLI tool.
-	f, err := os.OpenFile(filepath.Clean(name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644) //nolint:gosec // see G302 above
+	f, err := os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644) //nolint:gosec // G302 and G304, see above
 	if err != nil {
 		return nil, err
 	}

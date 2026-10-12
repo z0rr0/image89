@@ -178,10 +178,15 @@ func TestRunRejectsBeforeCreating(t *testing.T) {
 		{name: "unknown kind", opts: func(o Options) Options { o.Kind = "nope"; return o }, want: figure.ErrUnknownKind},
 		{
 			name: "kind without generator",
-			opts: func(o Options) Options { o.Kind = string(figure.Newton); return o },
+			opts: func(o Options) Options { o.Kind = string(figure.Sierpinski); return o },
 			want: figure.ErrUnknownKind,
 		},
 		{name: "unknown format", opts: func(o Options) Options { o.Format = "gif"; return o }, want: encode.ErrUnknownFormat},
+		{
+			name: "output with trailing separator",
+			opts: func(o Options) Options { o.Output = filepath.Dir(o.Output) + string(filepath.Separator); return o },
+			want: ErrInvalidOutput,
+		},
 	}
 
 	for _, tt := range tests {
@@ -283,5 +288,56 @@ func TestRunOpenError(t *testing.T) {
 	err := Run(t.Context(), fakeRenderer{fn: writeData}, options(name, "png"))
 	if !errors.Is(err, fs.ErrNotExist) || errors.Is(err, ErrOutputExists) {
 		t.Errorf("Run error = %v, want %v only", err, fs.ErrNotExist)
+	}
+}
+
+// TestRunPathThroughSymlink resolves "alias/../name" through the symlink
+// alias -> other/child, like the OS does, so the file is created and removed
+// at other/name and nothing else in dir is touched.
+func TestRunPathThroughSymlink(t *testing.T) {
+	t.Parallel()
+
+	failing := fakeRenderer{fn: func(context.Context, func([]byte) error) error { return errBoom }}
+	tests := []struct {
+		name     string
+		existing bool
+		want     error
+	}{
+		{name: "existing.png", existing: true, want: ErrOutputExists},
+		{name: "new.png", want: errBoom},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dir := t.TempDir()
+			if err := os.MkdirAll(filepath.Join(dir, "other", "child"), 0o750); err != nil {
+				t.Fatalf("create dirs: %v", err)
+			}
+			if err := os.Symlink(filepath.Join("other", "child"), filepath.Join(dir, "alias")); err != nil {
+				t.Skipf("symlinks are not supported: %v", err)
+			}
+			target := filepath.Join(dir, "other", tt.name)
+			if tt.existing {
+				if err := os.WriteFile(target, []byte("keep"), 0o600); err != nil {
+					t.Fatalf("write the existing file: %v", err)
+				}
+			}
+
+			output := filepath.Join(dir, "alias") + string(filepath.Separator) + ".." + string(filepath.Separator) + tt.name
+			if err := Run(t.Context(), failing, options(output, "png")); !errors.Is(err, tt.want) {
+				t.Errorf("Run(%q) error = %v, want %v", output, err, tt.want)
+			}
+
+			assertNoFile(t, filepath.Join(dir, tt.name))
+			if !tt.existing {
+				assertNoFile(t, target)
+				return
+			}
+			if data, err := os.ReadFile(filepath.Clean(target)); err != nil || string(data) != "keep" {
+				t.Errorf("existing file = %q, %v, want %q", data, err, "keep")
+			}
+		})
 	}
 }

@@ -6,8 +6,9 @@
 
 It is a web application and CLI tool to generate math images.
 
-> **In development.** The CLI generates `mandelbrot` and `julia` images; the other four
-> types and the HTTP server are not implemented yet. The endpoints below describe the target behavior.
+> **In development.** The CLI and the HTTP server generate `mandelbrot`, `julia` and `newton` images;
+> `sierpinski`, `koch` and `lissajous` are not implemented yet and give an "unknown figure kind" error (404 over HTTP).
+> Only the Mandelbrot set has an info page so far.
 
 ## Usage
 
@@ -35,7 +36,8 @@ It is a web application and CLI tool to generate math images.
 `-h` is the image height, so help is available only via `-help`.
 
 The output name gets the extension of the format (`.png` or `.jpg`) only if it has none, so
-`-o pic.png -f jpeg` writes a JPEG image into `pic.png`. An existing file is never overwritten:
+`-o pic.png -f jpeg` writes a JPEG image into `pic.png`. `-o` names a file: a value without a
+file name such as `-o dir/` is rejected. An existing file is never overwritten:
 the run fails with `output file already exists` and the file stays as it was. If generation fails
 or is interrupted with Ctrl-C (SIGINT or SIGTERM), the unfinished file is removed. The log record
 of a created image (path, size, bytes, duration) goes to stderr; the exit code is 0 on success,
@@ -58,17 +60,68 @@ timeout = "120s"
 ### Server
 
 ```sh
-./image89 -s
+./image89 -s                       # listens on :8080 with the built-in defaults
+./image89 -s -c config.toml        # address, timeouts, limits and presets from a config
+curl -o pic.jpg 'http://localhost:8080/julia/640x480/?format=jpeg'
 ```
 
 | Request | Response |
 |---|---|
-| `GET /<type>/<W>x<H>/?format=<png\|jpeg>` | image of the given size |
+| `GET /<type>/<W>x<H>/?format=<png\|jpeg>` | image of the given size, PNG by default |
 | `GET /<type>/` | 1024×1024 image |
 | `GET /<type>/info/` | page about the figure |
-| `GET /` | index of figures |
-| `GET /health` | `200 OK` |
+| `GET /` | index of figures with thumbnails |
+| `GET /health` | `200 OK`, used by the compose healthcheck |
 | `GET /version` | application version |
+
+`HEAD` works for every `GET` route. The type is required in the server (the index takes `/`), and the
+format is `png` or `jpeg` in any case. A path without the trailing slash, such as `/julia/640x480`,
+is redirected with `307` to the path with the slash, keeping the query.
+
+| Status | When |
+|---|---|
+| `200` | image (`image/png` or `image/jpeg` with `Content-Length`) or page (`text/html; charset=utf-8`) |
+| `307` | the path has no trailing slash |
+| `400` | invalid size (`640X480`, a side outside 32–65536), unknown format, more than `limits.max_pixels` pixels, a JPEG side over 65535 |
+| `404` | unknown or not implemented type, unknown path |
+| `405` | a method other than `GET` and `HEAD` |
+| `503` + `Retry-After: 1` | all `limits.max_concurrent` slots are busy and the queue is full or `limits.queue_timeout` passed |
+| `503` | the image was not generated and encoded within `limits.timeout` |
+| `500` | unexpected error; the response has no details, the log has them |
+
+A `4xx` response body is a plain text error message. A client that disconnects before its image is
+ready gets no response, and the access log records the request with `status=0`.
+
+Images are sent with `Cache-Control: public, max-age=<server.cache_max_age>` (no header when it is
+`"0s"`). The same URL always gives the same image for one version and config, so caches may keep it;
+a change of presets or of the version reaches clients only after `cache_max_age` expires.
+
+Every response has an `X-Request-ID` header: a valid incoming one (up to 64 letters, digits, `-` and `_`)
+is reused, otherwise a UUID is generated. Each request is logged with its ID, status, size and duration;
+the level is info, warn for `4xx` and error for `5xx`.
+
+The server stops on SIGINT or SIGTERM: it stops accepting connections and lets active requests
+finish within `server.shutdown_timeout`; after that their generation is canceled and the connections
+are closed. Image flags (`-w -h -t -o -f`) are ignored with `-s`, and a warning is logged.
+
+Generation is CPU-bound, so the server limits it itself: at most `limits.max_concurrent` images are
+generated and sent at once, at most `limits.max_queued` requests wait for a slot. A rate limit in a
+reverse proxy is a useful addition, but it bounds requests per second, not concurrent work, so it does
+not replace these limits. An nginx example:
+
+```nginx
+limit_conn_zone $binary_remote_addr zone=image89_conn:10m;
+limit_req_zone  $binary_remote_addr zone=image89_req:10m rate=5r/s;
+
+server {
+    location / {
+        limit_conn image89_conn 4;
+        limit_req  zone=image89_req burst=20 nodelay;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_pass http://127.0.0.1:8080;
+    }
+}
+```
 
 ## Configuration
 

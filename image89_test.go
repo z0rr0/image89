@@ -2,17 +2,24 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/z0rr0/image89/internal/config"
 	"github.com/z0rr0/image89/internal/encode"
 	"github.com/z0rr0/image89/internal/figure"
+	"github.com/z0rr0/image89/internal/server"
 )
 
 func TestVersionInfo(t *testing.T) {
@@ -235,6 +242,17 @@ func writeFile(t *testing.T, name, content string) string {
 	return path
 }
 
+// listen returns a listener on a free local port, closed by the test cleanup.
+func listen(t *testing.T) net.Listener {
+	t.Helper()
+	ln, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	return ln
+}
+
 // TestRun is sequential: run replaces the global slog logger.
 func TestRun(t *testing.T) {
 	prev := slog.Default()
@@ -245,6 +263,9 @@ func TestRun(t *testing.T) {
 	invalid := writeFile(t, "invalid.toml", "[limits]\nmax_concurrent = 0\n")
 	debug := writeFile(t, "debug.toml", "[server]\ndebug = true\n")
 	existing := writeFile(t, "existing.png", "keep")
+	// The server cases run with a canceled ctx: the server starts and stops at once.
+	serverConfig := writeFile(t, "server.toml", "[server]\naddr = \"127.0.0.1:0\"\n")
+	busy := writeFile(t, "busy.toml", fmt.Sprintf("[server]\naddr = %q\n", listen(t).Addr().String()))
 	// Images are small and go to the temp dir, never to output.png in the repo.
 	image := func(name string, args ...string) []string {
 		return append([]string{"-w", "64", "-h", "48", "-o", filepath.Join(dir, name)}, args...)
@@ -253,6 +274,7 @@ func TestRun(t *testing.T) {
 	tests := []struct {
 		name       string
 		args       []string
+		canceled   bool
 		code       int
 		wantStdout string
 		wantStderr string
@@ -266,7 +288,16 @@ func TestRun(t *testing.T) {
 		{name: "cli", args: image("pic"), code: exitOK, wantStderr: "image created", wantFile: "pic.png"},
 		{name: "cli exists", args: []string{"-w", "64", "-h", "48", "-o", existing}, code: exitError, wantStderr: "already exists"},
 		{name: "cli invalid size", args: image("small", "-w", "10"), code: exitError, wantStderr: "invalid image size"},
-		{name: "server", args: []string{"-s"}, code: exitError, wantStderr: errNotImplemented.Error()},
+		{
+			name: "cli output dir", args: []string{"-w", "64", "-h", "48", "-o", dir + string(filepath.Separator)},
+			code: exitError, wantStderr: "output name has no file name",
+		},
+		{name: "server", args: []string{"-s", "-c", serverConfig}, canceled: true, code: exitOK, wantStderr: "server stopped"},
+		{
+			name: "server ignores image flags", args: []string{"-s", "-c", serverConfig, "-w", "64", "-o", "pic"}, canceled: true,
+			code: exitOK, wantStderr: `msg="image flags are ignored in server mode" flags="[o w]"`,
+		},
+		{name: "server busy port", args: []string{"-s", "-c", busy}, code: exitError, wantStderr: "address already in use"},
 		{name: "version ignores config", args: []string{"-v", "-c", missing}, code: exitOK, wantStdout: versionInfo() + "\n"},
 		{
 			name: "docs config", args: image("docs", "-c", "docs/config.toml", "-t", "julia", "-f", "jpeg"),
@@ -280,8 +311,13 @@ func TestRun(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tt.canceled {
+				cancel()
+			}
 			var stdout, stderr bytes.Buffer
-			if code := run(tt.args, &stdout, &stderr); code != tt.code {
+			if code := run(ctx, tt.args, &stdout, &stderr); code != tt.code {
 				t.Errorf("run(%q) = %d, want %d; stderr:\n%s", tt.args, code, tt.code, stderr.String())
 			}
 			if got := stdout.String(); got != tt.wantStdout {
@@ -296,5 +332,18 @@ func TestRun(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestServeFails(t *testing.T) {
+	ln := listen(t)
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+	srv := server.New(config.Default(), nil, nil, versionInfo())
+
+	err := serve(t.Context(), srv, ln, time.Second)
+	if err == nil || errors.Is(err, http.ErrServerClosed) {
+		t.Errorf("serve on a closed listener error = %v, want a serving error", err)
 	}
 }

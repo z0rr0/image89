@@ -12,13 +12,15 @@ This document provides information for AI agents working on the **Image89** code
 
 ```
 .
-├── image89.go           # main: flags, version, logger, config loading, signal ctx, mode selection
+├── image89.go           # main: flags, version, logger, config loading, signal ctx, mode selection, runServer
 ├── internal/config/     # Config, Default(), Load(path), presets, Duration, Color, validation
 ├── internal/figure/     # Kind, Kinds(), ParseKind, Size, ParseSize, side limits, ForRows row scheduler
-│   └── fractal/         # Mandelbrot, Julia: viewport, palette, escape iteration, shared escape-time loop
+│   └── fractal/         # Mandelbrot, Julia, Newton: viewport, palette, iterations, shared pixel loop (plane)
 ├── internal/encode/     # Format, Parse, ContentType/Ext/MaxSide, ctx-aware Encode to PNG or JPEG
 ├── internal/render/     # Generator, Request, Renderer: registry, Validate, slots with a bounded queue, timeout
 ├── internal/cli/        # CLI mode: OutputName, Run into a new file (O_EXCL), removes the file on any error
+├── internal/server/     # HTTP: routes, image handler, error statuses, middleware, Serve/Shutdown with fallback
+├── internal/pages/      # embedded html/template pages (base, index, info/<kind>.html), rendered once by New
 ├── docs/config.toml     # annotated config, every value equals config.Default()
 ├── Makefile             # build, test, lint, dist, docker targets
 ├── Dockerfile           # multi-stage image z0rr0/image89
@@ -75,14 +77,40 @@ Gotchas:
   hot loops are written with one block per iteration (`escapeJulia`).
 - Escape convention in `fractal`: `|z|² > r2` is checked before every update, `n` is the number of updates;
   `n < maxIter` means escaped, `n == maxIter` means inside. Products are wrapped in `float64()` against FMA.
-- Mandelbrot and Julia share one unexported loop (`escapeTime` in `escape.go`) parameterized by the escape
-  function; `dupl` is on, so new pixel fractals reuse it instead of copying the loop.
+- Pixel fractals share one unexported loop, `plane` in `plane.go`: a pixel function returns the color and the
+  iterations spent (the ctx check budget). `escapeTime` in `escape.go` builds it for Mandelbrot and Julia from
+  an escape function and the smooth coloring; `dupl` is on, so new pixel fractals reuse `plane`.
+- Newton convention (`newtonRoot`): `|zⁿ − 1|² < eps²` is checked before every step, so a point at a root takes
+  0 steps; a step with `|Δz|² < eps²` also converges and is counted; `|zⁿ⁻¹|² < newtonMinDeriv2` or `maxIter`
+  steps give `k = −1` (background). The root index is the nearest root by angle. Color: a gradient from
+  `colors[k]` to the background, at most `newtonFade` of the way, so a converged pixel never equals the background.
 - `render.Render` order: `Validate`, `ctx.Err()`, non-blocking slot try, then `ErrQueueFull` when `max_queued`
   requests wait, then a wait bounded by `queue_timeout` (`ErrBusy` joined with `DeadlineExceeded` or `Canceled`).
   `timeout` starts after the slot is taken; the slot is released after `sink` returns (also on a panic).
   Queue and timeout tests use `testing/synctest`, so they need no sleeps and run in virtual time.
-- `cli.createFile` opens with `0o644` under `//nolint:gosec` (G302); paths go through `filepath.Clean` (G304),
-  in tests too.
+- `cli.createFile` opens with `0o644` under `//nolint:gosec` (G302, G304) and uses the `-o` path as is. Never
+  `filepath.Clean` a path that is later removed or reused: Clean is lexical and ignores symlinks, so with
+  `alias -> other/child` the path `alias/../x` would be created at `./x` but removed at `other/x`, a foreign file.
+  Read-only paths may go through `filepath.Clean` for G304 (`config.Load`, tests).
+- Server lifecycle: `runServer` binds with `(&net.ListenConfig{}).Listen(ctx, ...)` (`noctx` forbids
+  `net.Listen`) before serving, so a busy port fails at once. Requests get a base context of their own
+  (`BaseContext`), never derived from the signal ctx: the signal must not cancel requests that `Shutdown` lets
+  finish. `server.Shutdown` drains until its ctx is done, then cancels the base context (generation stops) and
+  calls `Close`. `run(ctx, ...)` takes a parent ctx, so tests start and stop the server with a canceled ctx.
+  `server.New` captures `slog.Default()` for the `http.Server` `ErrorLog`, so it must run after the final
+  `slog.SetDefault` (the debug logger from the config).
+- Routes: `GET /{kind}/{$}`, `/{kind}/{size}/{$}`, `/{kind}/info/{$}` (the literal `info` wins over `{size}`).
+  Go 1.27 `ServeMux` redirects a path without the trailing slash with **307**, keeping the query.
+  `GET` patterns serve `HEAD` too; the image sink skips the body for `HEAD`.
+- Image errors map to statuses in `errorStatus`, `context.Canceled` first (a canceled queue wait carries
+  `ErrBusy` too), `ErrBusy`/`ErrQueueFull` before `DeadlineExceeded` (503 with and without `Retry-After`).
+  A canceled request writes nothing, and the access log records it with `status=0` at the info level.
+- Pages are embedded and rendered into bytes once by `pages.New`; the index lists the kinds of the renderer
+  and links an info page only if `templates/info/<kind>.html` exists. MathML in templates uses literal UTF-8
+  (`−`, `→`, `∞`), no named entities. The base template has `<link rel="icon" href="data:,">`, otherwise
+  every page view asks for `/favicon.ico` and logs a 404 warning.
+- Server tests: queue and cancel tests call `Handler.ServeHTTP` directly inside `testing/synctest` (no network)
+  with a `fakeWriter` that blocks in `Write`; lifecycle tests use a real listener on `127.0.0.1:0` and real time.
 
 ## Code Style Conventions
 

@@ -68,6 +68,7 @@ func New(cfg *config.Config) *Renderer {
 	return newRenderer(cfg, map[figure.Kind]Generator{
 		figure.Mandelbrot: fractal.NewMandelbrot(cfg.Types.Mandelbrot, workers),
 		figure.Julia:      fractal.NewJulia(cfg.Types.Julia, workers),
+		figure.Newton:     fractal.NewNewton(cfg.Types.Newton, workers),
 	})
 }
 

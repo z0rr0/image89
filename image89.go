@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -21,7 +23,9 @@ import (
 	"github.com/z0rr0/image89/internal/config"
 	"github.com/z0rr0/image89/internal/encode"
 	"github.com/z0rr0/image89/internal/figure"
+	"github.com/z0rr0/image89/internal/pages"
 	"github.com/z0rr0/image89/internal/render"
+	"github.com/z0rr0/image89/internal/server"
 )
 
 // name is the service name shown in the build info line.
@@ -34,10 +38,7 @@ const (
 	exitUsage = 2
 )
 
-var (
-	errNotImplemented = errors.New("not implemented")
-	errUnexpectedArgs = errors.New("unexpected positional arguments")
-)
+var errUnexpectedArgs = errors.New("unexpected positional arguments")
 
 // Build metadata: Version, Revision and BuildDate are injected at build time via
 // -ldflags "-X main.Version=... -X main.Revision=... -X main.BuildDate=...", so
@@ -127,12 +128,13 @@ func kindNames() string {
 }
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+	os.Exit(run(context.Background(), os.Args[1:], os.Stdout, os.Stderr))
 }
 
 // run executes the program and returns its exit code. The version goes to
-// stdout, logs and usage go to stderr.
-func run(args []string, stdout, stderr io.Writer) int {
+// stdout, logs and usage go to stderr. Canceling ctx stops the run as SIGINT
+// and SIGTERM do.
+func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	opts, err := parseFlags(args, stderr)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -157,8 +159,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	slog.SetDefault(setupLogger(stderr, cfg.Server.Debug))
 
 	// SIGINT or SIGTERM cancels ctx: the CLI stops generating and removes the
-	// unfinished file. Signals stay caught until run returns.
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	// unfinished file, the server shuts down. Signals stay caught until run returns.
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	if opts.serve {
@@ -193,9 +195,71 @@ func runCLI(ctx context.Context, cfg *config.Config, opts options) error {
 	})
 }
 
-// runServer serves images over HTTP until ctx is canceled.
-func runServer(_ context.Context, _ *config.Config, _ options) error {
-	return errNotImplemented
+// runServer serves images over HTTP until ctx is canceled. The address is
+// bound before serving, so a busy port fails the run at once.
+func runServer(ctx context.Context, cfg *config.Config, opts options) error {
+	if ignored := ignoredFlags(opts.set); len(ignored) > 0 {
+		slog.Warn("image flags are ignored in server mode", "flags", ignored)
+	}
+
+	r := render.New(cfg)
+	p, err := pages.New(Version, r.Kinds())
+	if err != nil {
+		return fmt.Errorf("render pages: %w", err)
+	}
+	// The requests get a base context of their own, not derived from ctx: the
+	// stop signal must not cancel the requests that Shutdown lets finish.
+	srv := server.New(cfg, r, p, versionInfo()) //nolint:contextcheck // see above
+
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", srv.Addr())
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
+	slog.Info("server started", "addr", ln.Addr().String(), "version", Version, "kinds", r.Kinds())
+	err = serve(ctx, srv, ln, cfg.Server.ShutdownTimeout.Timed())
+	slog.Info("server stopped")
+	return err
+}
+
+// serve runs srv on ln until ctx is done or serving fails, then shuts srv
+// down: the active requests may finish within timeout, after that they are
+// canceled. A failed shutdown is logged, only a serving error is returned.
+func serve(ctx context.Context, srv *server.Server, ln net.Listener, timeout time.Duration) error {
+	done := make(chan error, 1)
+	go func() { done <- srv.Serve(ln) }()
+
+	var serveErr error
+	select {
+	case serveErr = <-done:
+	case <-ctx.Done():
+		slog.Info("shutdown signal received")
+	}
+
+	// ctx is usually done here, so the shutdown deadline needs a fresh context.
+	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("server shutdown failed", "error", err)
+	}
+	if serveErr == nil {
+		serveErr = <-done
+	}
+	if errors.Is(serveErr, http.ErrServerClosed) {
+		return nil
+	}
+	return fmt.Errorf("serve: %w", serveErr)
+}
+
+// ignoredFlags returns the image flags given explicitly, which the server
+// ignores, in alphabetical order.
+func ignoredFlags(set map[string]bool) []string {
+	var names []string
+	for _, name := range []string{"f", "h", "o", "t", "w"} {
+		if set[name] {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 // setupLogger returns a slog text logger writing to w. Debug mode lowers the

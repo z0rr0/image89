@@ -1,0 +1,195 @@
+package pages
+
+import (
+	"errors"
+	"regexp"
+	"strings"
+	"testing"
+	"testing/fstest"
+
+	"github.com/z0rr0/image89/internal/figure"
+)
+
+func TestIndex(t *testing.T) {
+	t.Parallel()
+
+	kinds := []figure.Kind{figure.Mandelbrot, figure.Julia, figure.Newton}
+	p, err := New("v1.2.3", kinds)
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	index := string(p.Index())
+
+	for _, want := range []string{"<!doctype html>", `<html lang="en">`, "<title>Image89</title>", "Image89 v1.2.3", "</html>"} {
+		if !strings.Contains(index, want) {
+			t.Errorf("index does not contain %q", want)
+		}
+	}
+	for _, kind := range kinds {
+		for _, want := range []string{
+			`<img loading="lazy" src="/` + string(kind) + `/320x240/" width="320" height="240" alt="` + figureName(kind) + `">`,
+			`<a href="/` + string(kind) + `/">`,
+			`<a href="/` + string(kind) + `/640x480/?format=jpeg">`,
+			"<h2>" + figureName(kind) + "</h2>",
+		} {
+			if !strings.Contains(index, want) {
+				t.Errorf("index does not contain %q", want)
+			}
+		}
+	}
+	// Only the kinds given to New are listed, and only the pages that exist are linked.
+	if strings.Contains(index, "/koch/") {
+		t.Error("index lists koch, which was not given")
+	}
+	if !strings.Contains(index, `<a href="/mandelbrot/info/">`) {
+		t.Error("index has no link to the mandelbrot info page")
+	}
+	if strings.Contains(index, `<a href="/julia/info/">`) {
+		t.Error("index links the julia info page, which does not exist")
+	}
+}
+
+func TestVersionEscaped(t *testing.T) {
+	t.Parallel()
+
+	p, err := New("<b>v1</b>", nil)
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	info, err := p.Info(figure.Mandelbrot)
+	if err != nil {
+		t.Fatalf("Info error: %v", err)
+	}
+	for name, page := range map[string][]byte{"index": p.Index(), "info": info} {
+		if s := string(page); strings.Contains(s, "<b>v1</b>") || !strings.Contains(s, "&lt;b&gt;v1&lt;/b&gt;") {
+			t.Errorf("%s page does not escape the version", name)
+		}
+	}
+}
+
+// tags matches HTML tags and the MathML formulas, which are not prose.
+var tags = regexp.MustCompile(`(?s)<math.*?</math>|<[^>]*>`)
+
+func TestInfoMandelbrot(t *testing.T) {
+	t.Parallel()
+
+	p, err := New("v1", []figure.Kind{figure.Mandelbrot})
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	page, err := p.Info(figure.Mandelbrot)
+	if err != nil {
+		t.Fatalf("Info error: %v", err)
+	}
+	s := string(page)
+	for _, want := range []string{
+		"<title>Mandelbrot set · Image89</title>", "<h1>Mandelbrot set</h1>", `<math display="block">`, "<msubsup>", "Image89 v1",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("info page does not contain %q", want)
+		}
+	}
+
+	_, main, _ := strings.Cut(s, "<main>")
+	main, _, _ = strings.Cut(main, "</main>")
+	if words := len(strings.Fields(tags.ReplaceAllString(main, " "))); words < 300 || words > 500 {
+		t.Errorf("info page has %d words, want 300–500", words)
+	}
+}
+
+func TestInfoUnknown(t *testing.T) {
+	t.Parallel()
+
+	p, err := New("v1", nil)
+	if err != nil {
+		t.Fatalf("New error: %v", err)
+	}
+	for _, kind := range []figure.Kind{figure.Julia, "nope"} {
+		page, err := p.Info(kind)
+		if !errors.Is(err, figure.ErrUnknownKind) || page != nil {
+			t.Errorf("Info(%q) = %d bytes, %v; want %v", kind, len(page), err, figure.ErrUnknownKind)
+		}
+	}
+}
+
+func TestFigureName(t *testing.T) {
+	t.Parallel()
+
+	names := make(map[string]bool)
+	for _, kind := range figure.Kinds() {
+		name := figureName(kind)
+		if name == string(kind) || names[name] {
+			t.Errorf("figureName(%q) = %q, want a distinct human-readable name", kind, name)
+		}
+		names[name] = true
+	}
+	if got := figureName("nope"); got != "nope" {
+		t.Errorf(`figureName("nope") = %q, want "nope"`, got)
+	}
+}
+
+func TestNewErrors(t *testing.T) {
+	t.Parallel()
+
+	const (
+		base  = `<html><title>{{block "title" .}}x{{end}}</title>{{block "content" .}}{{end}}</html>`
+		index = `{{define "content"}}{{range .Kinds}}{{.Name}}{{end}}{{end}}`
+	)
+	tests := []struct {
+		name  string
+		files fstest.MapFS
+		want  string
+	}{
+		{
+			name:  "no base",
+			files: fstest.MapFS{"templates/index.html": {Data: []byte(index)}},
+			want:  "parse base template",
+		},
+		{
+			name:  "no index",
+			files: fstest.MapFS{"templates/base.html": {Data: []byte(base)}},
+			want:  "parse template templates/index.html",
+		},
+		{
+			name: "broken info",
+			files: fstest.MapFS{
+				"templates/base.html":            {Data: []byte(base)},
+				"templates/index.html":           {Data: []byte(index)},
+				"templates/info/mandelbrot.html": {Data: []byte(`{{define "content"}}{{.Missing}}{{end}}`)},
+			},
+			want: "execute template templates/info/mandelbrot.html",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			p, err := newPages(tt.files, "v1", []figure.Kind{figure.Mandelbrot})
+			if err == nil || !strings.Contains(err.Error(), tt.want) || p != nil {
+				t.Errorf("newPages error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestNewFindsInfoTemplates(t *testing.T) {
+	t.Parallel()
+
+	files := fstest.MapFS{
+		"templates/base.html":       {Data: []byte(`{{block "content" .}}{{end}}`)},
+		"templates/index.html":      {Data: []byte(`{{define "content"}}{{range .Kinds}}{{.Kind}}:{{.Info}};{{end}}{{end}}`)},
+		"templates/info/koch.html":  {Data: []byte(`{{define "content"}}{{.Name}}{{end}}`)},
+		"templates/info/other.html": {Data: []byte(`{{define "content"}}other{{end}}`)},
+	}
+	p, err := newPages(files, "v1", []figure.Kind{figure.Koch, figure.Julia})
+	if err != nil {
+		t.Fatalf("newPages error: %v", err)
+	}
+	if got, want := string(p.Index()), "koch:true;julia:false;"; got != want {
+		t.Errorf("index = %q, want %q", got, want)
+	}
+	if page, err := p.Info(figure.Koch); err != nil || string(page) != "Koch snowflake" {
+		t.Errorf("Info(koch) = %q, %v; want the koch page", page, err)
+	}
+}

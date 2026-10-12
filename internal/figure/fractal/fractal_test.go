@@ -27,10 +27,12 @@ func generators(workers, iterations int) map[string]generator {
 	if iterations > 0 {
 		types.Mandelbrot.Iterations = iterations
 		types.Julia.Iterations = iterations
+		types.Newton.Iterations = iterations
 	}
 	return map[string]generator{
 		"mandelbrot": NewMandelbrot(types.Mandelbrot, workers),
 		"julia":      NewJulia(types.Julia, workers),
+		"newton":     NewNewton(types.Newton, workers),
 	}
 }
 
@@ -222,9 +224,9 @@ func TestRowsStopInsideBlock(t *testing.T) {
 	size := figure.Size{Width: 4096, Height: blockRows}
 	m := NewMandelbrot(insideMandelbrot(4096), 1)
 	img := image.NewRGBA(image.Rect(0, 0, size.Width, size.Height))
-	view := newViewport(m.e.center, m.e.width, m.e.height, size)
+	view := newViewport(m.plane.center, m.plane.width, m.plane.height, size)
 
-	err := m.e.rows(&countdownCtx{}, img, view, 0, size.Height)
+	err := m.plane.rows(&countdownCtx{}, img, view, 0, size.Height)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("rows error = %v, want %v", err, context.Canceled)
 	}

@@ -1,0 +1,19 @@
+{{define "content"}}
+<h1>Image89</h1>
+<p>Images of math figures of any size, as PNG or JPEG. Every image is drawn on request,
+and the same URL always gives the same picture.</p>
+<ul class="figures">
+{{- range .Kinds}}
+<li>
+<a href="/{{.Kind}}/"><img loading="lazy" src="/{{.Kind}}/320x240/" width="320" height="240" alt="{{.Name}}"></a>
+<h2>{{.Name}}</h2>
+<p>{{if .Info}}<a href="/{{.Kind}}/info/">About</a> · {{end}}<a href="/{{.Kind}}/">1024×1024 PNG</a> · <a href="/{{.Kind}}/640x480/?format=jpeg">640×480 JPEG</a></p>
+</li>
+{{- end}}
+</ul>
+<h2>URLs</h2>
+<p><code>/&lt;type&gt;/&lt;W&gt;x&lt;H&gt;/?format=png</code> gives an image of the type with the width W and the
+height H in pixels, from 32 to 65536 per side within the pixel limit of the server; <code>format</code> is <code>png</code> (the default) or
+<code>jpeg</code>. <code>/&lt;type&gt;/</code> gives a 1024×1024 PNG image, and
+<code>/&lt;type&gt;/info/</code> a page about the figure.</p>
+{{end}}

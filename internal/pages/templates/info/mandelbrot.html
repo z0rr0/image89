@@ -1,0 +1,75 @@
+{{define "title"}}{{.Name}} · Image89{{end}}
+{{define "content"}}
+<h1>{{.Name}}</h1>
+<p><img src="/mandelbrot/640x480/" width="640" height="480" alt="The Mandelbrot set"></p>
+
+<p>The Mandelbrot set is a shape in the complex plane drawn by a rule that fits on one line.
+Pick a complex number <i>c</i>, start from zero and repeat the same step again and again:</p>
+
+<math display="block">
+  <msub><mi>z</mi><mrow><mi>n</mi><mo>+</mo><mn>1</mn></mrow></msub>
+  <mo>=</mo>
+  <msubsup><mi>z</mi><mi>n</mi><mn>2</mn></msubsup>
+  <mo>+</mo><mi>c</mi><mo>,</mo>
+  <mspace width="1em"></mspace>
+  <msub><mi>z</mi><mn>0</mn></msub><mo>=</mo><mn>0</mn>
+</math>
+
+<p>If the numbers stay near the origin forever, <i>c</i> belongs to the set; if they run away to
+infinity, it does not. Once a number is farther than 2 from the origin, it is sure to escape,
+so a computer can stop early:</p>
+
+<math display="block">
+  <mrow><mo>|</mo><msub><mi>z</mi><mi>n</mi></msub><mo>|</mo></mrow>
+  <mo>&gt;</mo><mn>2</mn>
+  <mspace width="0.5em"></mspace><mo>⇒</mo><mspace width="0.5em"></mspace>
+  <msub><mi>z</mi><mi>n</mi></msub><mo>→</mo><mi>∞</mi>
+</math>
+
+<h2>History</h2>
+<p>Around 1918 the French mathematicians Pierre Fatou and Gaston Julia studied what happens when a
+function of a complex number is applied again and again. They had no computers and could only
+imagine the pictures. In 1978 Robert Brooks and Peter Matelski printed the first rough image of
+the set, made of text characters. Benoit Mandelbrot, working at IBM, made far better pictures in
+1980 and showed how intricate the boundary is. Adrien Douady and John Hubbard proved the first deep
+facts about the set and named it after him, and an article by A. K. Dewdney in Scientific American
+in August 1985 made it famous far beyond mathematics.</p>
+
+<h2>Interesting facts</h2>
+<ul>
+<li>The set is connected: it is a single piece, even though thin filaments are all that join some
+of its parts.</li>
+<li>Its largest part is a heart-shaped cardioid. The round disk to its left has its center at −1 and a
+radius of 1/4; there the numbers settle into a cycle of two values.</li>
+<li>On the real line the set covers exactly the interval from −2 to 1/4.</li>
+<li>The boundary is so wrinkled that its fractal (Hausdorff) dimension is 2, as for a filled area
+(Mitsuhiro Shishikura, 1998). The area itself is about 1.5066, and no exact formula is known.</li>
+<li>Zooming into the boundary reveals endless small copies of the whole set.</li>
+<li>Every point of the set gives a connected <a href="/julia/640x480/">Julia set</a>; outside the
+set the Julia set breaks into dust.</li>
+<li>Whether the set is locally connected is a famous open question.</li>
+</ul>
+
+<h2>How Image89 draws it</h2>
+<p>Every pixel center becomes <i>c</i>, and the step repeats until the number escapes or the
+iteration limit of the preset is reached, 256 by default. Points that never escape take the first
+color of the palette. Escaped points are colored by a smooth count, so colors change gradually
+instead of in bands:</p>
+
+<math display="block">
+  <mi>μ</mi><mo>=</mo><mi>n</mi><mo>+</mo><mn>1</mn><mo>−</mo>
+  <msub><mi>log</mi><mn>2</mn></msub><mo>⁡</mo><mspace width="0.17em"></mspace>
+  <mi>log</mi><mo>⁡</mo><mspace width="0.17em"></mspace><mrow><mo>|</mo><msub><mi>z</mi><mi>n</mi></msub><mo>|</mo></mrow>
+</math>
+
+<p>The default view is centered at −0.75 and is 3.5 wide and 2.5 high. For other proportions the
+visible area grows, so the figure is never stretched. The preset lives in the
+<code>[types.mandelbrot]</code> section of the config.</p>
+
+<h2>Examples</h2>
+<ul>
+<li><a href="/mandelbrot/">1024×1024 PNG</a></li>
+<li><a href="/mandelbrot/1920x1080/?format=jpeg">1920×1080 JPEG</a></li>
+<li><a href="/mandelbrot/480x640/">480×640 PNG</a></li>
+</ul>
+{{end}}

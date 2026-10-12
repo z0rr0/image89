@@ -127,7 +127,7 @@ func TestValidate(t *testing.T) {
 			want: encode.ErrUnknownFormat, notWant: figure.ErrUnknownKind,
 		},
 		{
-			name: "kind without generator", req: Request{Kind: figure.Newton, Size: size(64, 48), Format: encode.PNG},
+			name: "kind without generator", req: Request{Kind: figure.Sierpinski, Size: size(64, 48), Format: encode.PNG},
 			want: figure.ErrUnknownKind,
 		},
 		{
@@ -458,7 +458,7 @@ func TestKinds(t *testing.T) {
 	t.Parallel()
 
 	r := New(config.Default())
-	want := []figure.Kind{figure.Mandelbrot, figure.Julia}
+	want := []figure.Kind{figure.Mandelbrot, figure.Julia, figure.Newton}
 	got := r.Kinds()
 	if !slices.Equal(got, want) {
 		t.Fatalf("Kinds() = %v, want %v", got, want)

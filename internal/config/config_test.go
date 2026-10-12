@@ -156,6 +156,28 @@ func TestLoadErrors(t *testing.T) {
 		{name: "short point", content: "[types.mandelbrot]\ncenter = [1.0]\n", errIs: ErrOutOfRange, contains: "center has 1 values"},
 		{name: "long point", content: "[types.julia]\nc = [1.0, 2.0, 3.0]\n", errIs: ErrOutOfRange, contains: "c has 3 values"},
 		{name: "cross check", content: "[server]\nwrite_timeout = \"30s\"\n", errIs: ErrWriteTimeout, contains: "server.write_timeout"},
+		// go-toml decodes non-string values into Duration and Color bypassing UnmarshalText.
+		{name: "integer duration", content: "[limits]\ntimeout = 30\n", errIs: ErrDecode, contains: "limits.timeout: got integer"},
+		{name: "float duration", content: "[server]\ncache_max_age = 1.5\n", errIs: ErrDecode, contains: "server.cache_max_age: got float"},
+		{name: "boolean duration", content: "[server]\nidle_timeout = true\n", errIs: ErrDecode, contains: "server.idle_timeout: got boolean"},
+		{name: "array duration", content: "[limits]\nqueue_timeout = [1]\n", errIs: ErrDecode, contains: "limits.queue_timeout: got array"},
+		{name: "date duration", content: "[server]\nread_timeout = 1979-05-27\n", errIs: ErrDecode, contains: "server.read_timeout: got date or time"},
+		{name: "integer color", content: "[types.koch]\ncolor = 255\n", errIs: ErrDecode, contains: "types.koch.color: got integer"},
+		{name: "inline table color", content: "[types.koch]\ncolor = {R = 255}\n", errIs: ErrDecode, contains: "types.koch.color: got table"},
+		{name: "empty inline table color", content: "[types.koch]\ncolor = {}\n", errIs: ErrDecode, contains: "types.koch.color: got table"},
+		{name: "table header color", content: "[types.koch.color]\nR = 255\n", errIs: ErrDecode, contains: "types.koch.color: got table"},
+		{name: "table in palette", content: "[types.mandelbrot]\npalette = [{R = 255}, {}]\n", errIs: ErrDecode, contains: "types.mandelbrot.palette[0]: got table"},
+		{name: "integer in colors", content: "[types.newton]\ncolors = [\"#000000\", 16711680]\n", errIs: ErrDecode, contains: "types.newton.colors[1]: got integer"},
+		{name: "keys in other case", content: "[Types.Koch]\nColor = {R = 1}\n", errIs: ErrDecode, contains: "Types.Koch.Color: got table"},
+		// U+0130 lowers to "i" as go-toml matches keys, but strings.EqualFold does not fold it.
+		{name: "dotted capital I in key", content: "[limits]\n\"t\u0130meout\" = 30\n", errIs: ErrDecode, contains: "limits.t\u0130meout: got integer"},
+		{name: "dotted capital I in table", content: "[\"l\u0130mits\"]\ntimeout = 30\n", errIs: ErrDecode, contains: "l\u0130mits.timeout: got integer"},
+		{
+			name:     "dotted capital I in nested table",
+			content:  "[types.\"l\u0130ssajous\"]\ncolor = {R = 255}\n",
+			errIs:    ErrDecode,
+			contains: "types.l\u0130ssajous.color: got table",
+		},
 	}
 
 	for _, tt := range tests {
@@ -307,6 +329,53 @@ func TestValidate(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.field) {
 				t.Errorf("validate() error %q does not name %q", err, tt.field)
+			}
+		})
+	}
+}
+
+func TestLoadKeysIgnoreCase(t *testing.T) {
+	t.Parallel()
+
+	got, err := Load(writeConfig(t, "[Types.Koch]\nColor = \"#010203\"\n[LIMITS]\n\"T\u0130meout\" = \"10s\"\n"))
+	if err != nil {
+		t.Fatalf("Load error: %v", err)
+	}
+	want := Default()
+	want.Types.Koch.Color = Color{1, 2, 3}
+	want.Limits.Timeout = Duration(10 * time.Second)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Load:\n got %+v\nwant %+v", got, want)
+	}
+}
+
+// An invalid degree is reported once: the color count is checked against the
+// degree clamped to its valid range.
+func TestValidateNewtonDegreeOnly(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		degree int
+		colors int
+	}{
+		{name: "small degree", degree: 2, colors: 3},
+		{name: "large degree", degree: 9, colors: 8},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := Default()
+			cfg.Types.Newton.Degree = tt.degree
+			cfg.Types.Newton.Colors = cfg.Types.Newton.Colors[:tt.colors]
+			err := cfg.validate()
+			if !errors.Is(err, ErrOutOfRange) {
+				t.Errorf("validate() error = %v, want %v", err, ErrOutOfRange)
+			}
+			if errors.Is(err, ErrTooFewColors) {
+				t.Errorf("validate() error = %v, want no %v", err, ErrTooFewColors)
 			}
 		})
 	}

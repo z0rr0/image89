@@ -46,6 +46,11 @@ Gotchas:
   Bump them together.
 - go-toml flattens errors returned by `UnmarshalText`: `errors.Is` sees only `config.ErrDecode`, not
   `ErrInvalidColor` or `ErrNegativeDuration`. Test those sentinels on the types directly.
+- go-toml calls `UnmarshalText` only for TOML strings and decodes other values straight into the Go type
+  (`timeout = 30` would be 30ns, `color = {R = 255}` would set RGB fields). `config.Load` rejects them first
+  with `checkTextFields`, which covers every `encoding.TextUnmarshaler` field found by its `toml` tag, so
+  every config field needs a `toml` tag. Keys are matched as go-toml does, by `strings.ToLower` of key and
+  tag, not `strings.EqualFold`: they differ for keys like `"tİmeout"` (U+0130).
 
 ## Code Style Conventions
 

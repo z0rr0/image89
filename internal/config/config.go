@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
 
@@ -132,6 +133,14 @@ func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
+	}
+
+	var doc map[string]any
+	if err = toml.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("decode config %s: %w", path, decodeError(err))
+	}
+	if err = checkTextFields(doc, reflect.TypeFor[Config](), ""); err != nil {
+		return nil, fmt.Errorf("decode config %s: %w", path, err)
 	}
 
 	cfg := Default()

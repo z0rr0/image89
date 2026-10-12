@@ -182,7 +182,8 @@ func (p *Newton) validate(v *validator, limits *Limits) {
 	v.positive("types.newton.width", p.Width)
 	v.positive("types.newton.height", p.Height)
 	v.positive("types.newton.epsilon", p.Epsilon)
-	v.colors("types.newton.colors", p.Colors, max(p.Degree, minNewtonDegree))
+	// The degree is clamped, so an invalid degree is reported only once.
+	v.colors("types.newton.colors", p.Colors, min(max(p.Degree, minNewtonDegree), maxNewtonDegree))
 }
 
 func (p *Sierpinski) validate(v *validator, limits *Limits) {

@@ -60,6 +60,8 @@ docker:
 # manifest list at all, so this needs its own docker-container builder, created
 # on first use and reused afterwards. Not a dependency of `docker` — that would
 # build the image twice.
+# TAG is the latest tag of the repository, not necessarily on HEAD: pushing an
+# untagged HEAD overwrites the image of that tag. This is intentional.
 docker-push:
 	@test "$(TAG)" != "v0.0.0" || (echo "no git tag found, refusing to push $(IMAGE):v0.0.0" && exit 1)
 	@docker buildx inspect $(BUILDER) >/dev/null 2>&1 || docker buildx create --name $(BUILDER) --driver docker-container

@@ -69,14 +69,14 @@ func TestThrottle(t *testing.T) {
 	t.Parallel()
 
 	r := strings.NewReader("abc")
-	if got := throttle(r, 0); got != r {
+	if got := throttle(t.Context(), r, 0); got != r {
 		t.Error("throttle with rate 0 changed the reader")
 	}
 
+	const size, rate = 64 << 10, 32 << 10
 	synctest.Test(t, func(t *testing.T) {
-		const size, rate = 64 << 10, 32 << 10
 		start := time.Now()
-		n, err := io.Copy(io.Discard, throttle(bytes.NewReader(make([]byte, size)), rate))
+		n, err := io.Copy(io.Discard, throttle(t.Context(), bytes.NewReader(make([]byte, size)), rate))
 		if err != nil || n != size {
 			t.Fatalf("copy = %d, %v; want %d, nil", n, err, size)
 		}
@@ -84,13 +84,41 @@ func TestThrottle(t *testing.T) {
 			t.Errorf("reading %d bytes at %d B/s took %v, want 2s", size, rate, elapsed)
 		}
 	})
+	// A deadline ends a pause at once instead of after the whole body.
+	synctest.Test(t, func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 500*time.Millisecond)
+		defer cancel()
+		start := time.Now()
+		_, err := io.Copy(io.Discard, throttle(ctx, bytes.NewReader(make([]byte, size)), rate))
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("copy with a deadline = %v, want %v", err, context.DeadlineExceeded)
+		}
+		if elapsed := time.Since(start); elapsed != 500*time.Millisecond {
+			t.Errorf("copy with a deadline of 500ms took %v", elapsed)
+		}
+	})
+}
+
+func TestFetchTimeout(t *testing.T) {
+	t.Parallel()
+
+	// 1000 bytes at 100 B/s would take 10s; the timeout stops the pauses too.
+	srv := testServer(t)
+	start := time.Now()
+	r := fetch(t.Context(), srv.Client(), srv.URL+"/ok/", 100, 100*time.Millisecond)
+	if !errors.Is(r.err, context.DeadlineExceeded) {
+		t.Errorf("fetch with a timeout = %v, want %v", r.err, context.DeadlineExceeded)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("fetch with a timeout of 100ms took %v", elapsed)
+	}
 }
 
 func TestLoad(t *testing.T) {
 	t.Parallel()
 
 	srv := testServer(t)
-	opts := options{url: srv.URL, paths: []string{"/ok/", "/busy/", "/broken/"}, clients: 2, requests: 3}
+	opts := options{url: srv.URL, paths: []string{"/ok/", "/busy/", "/broken/"}, clients: 2, requests: 3, timeout: time.Minute}
 	results := load(t.Context(), srv.Client(), opts)
 	if len(results) != 6 {
 		t.Fatalf("got %d results, want 6", len(results))
@@ -122,7 +150,7 @@ func TestLoadCanceled(t *testing.T) {
 	srv := testServer(t)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	opts := options{url: srv.URL, paths: []string{"/ok/"}, clients: 3, requests: 5}
+	opts := options{url: srv.URL, paths: []string{"/ok/"}, clients: 3, requests: 5, timeout: time.Minute}
 	if results := load(ctx, srv.Client(), opts); len(results) != 0 {
 		t.Errorf("a canceled load sent %d requests, want 0", len(results))
 	}
@@ -134,10 +162,10 @@ func TestFetchErrors(t *testing.T) {
 	srv := testServer(t)
 	client := srv.Client()
 	srv.Close()
-	if r := fetch(t.Context(), client, srv.URL+"/ok/", 0); r.err == nil || r.status != 0 {
+	if r := fetch(t.Context(), client, srv.URL+"/ok/", 0, time.Second); r.err == nil || r.status != 0 {
 		t.Errorf("fetch from a closed server = status %d, %v; want no response and an error", r.status, r.err)
 	}
-	if r := fetch(t.Context(), client, "://bad", 0); r.err == nil {
+	if r := fetch(t.Context(), client, "://bad", 0, time.Second); r.err == nil {
 		t.Error("fetch of an invalid URL has no error")
 	}
 }

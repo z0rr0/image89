@@ -102,9 +102,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// The timeout of a request is a deadline of its ctx (see fetch), which
+	// also ends the pauses of -rate; Client.Timeout would not.
 	client := &http.Client{
 		Transport: &http.Transport{MaxIdleConnsPerHost: opts.clients, DisableCompression: true},
-		Timeout:   opts.timeout,
 	}
 	defer client.CloseIdleConnections()
 

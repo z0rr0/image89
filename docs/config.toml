@@ -32,7 +32,8 @@ queue_timeout = "2s"
 timeout = "15s"
 # Goroutines per image; 0 means GOMAXPROCS.
 workers = 0
-# Upper bound for types.*.iterations.
+# Upper bound for types.*.iterations, at most 1048576: a canceled generation
+# stops between pixels, so one pixel must not take long.
 max_iterations = 4096
 # Upper bound for types.*.depth.
 max_depth = 8

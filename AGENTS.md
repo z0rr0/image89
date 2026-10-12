@@ -93,6 +93,9 @@ Gotchas:
   `maxIter` for them; `escapeMandelbrot` itself still iterates. Skipped pixels count `maxIter` towards the ctx
   budget, so checks only come more often. `TestMandelbrotBulbsSameImage` compares the image byte for byte with
   the plain escape function; keep that when touching the check.
+- A pixel fractal stops only between pixels (`plane.rows` checks ctx every `checkEvery` iterations), so one pixel
+  bounds the stop delay: `limits.max_iterations` is at most `1<<20` (`maxMaxIterations`), 8–35 ms here. A new
+  pixel function whose cost per pixel is not bounded by the iterations must check ctx itself.
 - Newton convention (`newtonRoot`): `|zⁿ − 1|² < eps²` is checked before every step, so a point at a root takes
   0 steps; a step with `|Δz|² < eps²` also converges and is counted; `|zⁿ⁻¹|² < newtonMinDeriv2` or `maxIter`
   steps give `k = −1` (background). The root index is the nearest root by angle. Color: a gradient from
@@ -139,6 +142,7 @@ Gotchas:
 - `Stroke` sizes its points exactly: `strokePoints` walks the turns once and counts 6 points per rectangle and
   `chords + 2` per join or cap, with the chord angle (`chordAngle`) computed once per line. A change of `join`,
   `arc` or the rectangle must change `strokePoints` too; `TestStrokePoints` fails when the count is short.
+  `strokePoints` checks ctx every `strokeCheckEvery` segments, so a canceled line allocates no points.
 - `Fill` rasterizes bands of rows, one mask per worker. `Draw` indexes the mask from `r.Min` and needs `r` of
   exactly the mask size (the full image with the band rectangle, no `SubImage`); `Draw` consumes the mask, so
   `Reset` comes before every band. Masks are fixed point (4 B/px) up to 512 px per side, float (8 B/px)
@@ -167,7 +171,8 @@ Gotchas:
 - `docs/nginx.conf` follows the config defaults: `proxy_read_timeout` above `queue_timeout + timeout` and at most
   `write_timeout`, `proxy_cache_lock_timeout` about one generation, upstream `keepalive_timeout` below
   `server.idle_timeout`. nginx caches only responses with `Cache-Control`, i.e. images; keep pages and errors
-  without it. Change the file with those values and check it with `nginx -t` (e.g. in `nginx:alpine`).
+  without it. A cached response keeps the upstream headers, so `X-Request-ID` is hidden and set from the current
+  `$request_id`. Change the file with those values and check it with `nginx -t` (e.g. in `nginx:alpine`).
 
 ## Code Style Conventions
 

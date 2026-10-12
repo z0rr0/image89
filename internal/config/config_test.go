@@ -232,6 +232,8 @@ func TestValidate(t *testing.T) {
 		{"zero timeout", func(c *Config) { c.Limits.Timeout = 0 }, ErrOutOfRange, "limits.timeout"},
 		{"negative workers", func(c *Config) { c.Limits.Workers = -1 }, ErrOutOfRange, "limits.workers"},
 		{"zero max_iterations", func(c *Config) { c.Limits.MaxIterations = 0 }, ErrOutOfRange, "limits.max_iterations"},
+		{"large max_iterations", func(c *Config) { c.Limits.MaxIterations = 1<<20 + 1 }, ErrOutOfRange, "limits.max_iterations"},
+		{"max max_iterations", func(c *Config) { c.Limits.MaxIterations = 1 << 20 }, nil, ""},
 		{"negative max_depth", func(c *Config) { c.Limits.MaxDepth = -1 }, ErrOutOfRange, "limits.max_depth"},
 		// cross checks
 		{"header timeout above read timeout", func(c *Config) {

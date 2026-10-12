@@ -132,6 +132,13 @@ limits (4096 iterations, Koch of depth 8 with a line of 2%, Lissajous of 65 536 
 Newton takes the longest because one of its steps costs more than an iteration of the escape-time fractals,
 and `checkEvery` counts steps.
 
+A pixel fractal checks ctx only between pixels, after every `checkEvery` = 2²⁰ iterations, so a stop takes up
+to `checkEvery + max_iterations` iterations of one worker. An iteration costs 3.75 ns for Julia and 16–25 ns
+for a Newton step of degree 3–8 here. Without a bound on `limits.max_iterations` one pixel of 10⁸ iterations
+ran 0.4 s past the deadline (found in review), so the limit is at most 2²⁰: a `Render` of 64×64 with a
+`timeout` of 1 ms then returns within 8 ms for Julia with every point inside and within 35 ms for Newton of
+degree 8 with points that never converge.
+
 **Geometry at the largest side.** Polygons and their bands at the deepest level the resolution allows, without
 the RGBA buffer:
 
@@ -160,7 +167,8 @@ default view.
 
 **Capacity of the stroke polygons.** `Stroke` estimated 9 points per segment and grew the slice by `append`,
 which copied it and kept the old arrays until the next GC. It now counts the points of every join and cap in a
-pass over the turns and computes the chord angle once per line instead of once per join:
+pass over the turns, which checks ctx like the main loop, and computes the chord angle once per line instead
+of once per join:
 
 | | before | after |
 |---|---|---|
@@ -270,7 +278,7 @@ at the same throughput.
 | `server.write_timeout` | 60s | 30s | Exceeds `queue_timeout + timeout` (17 s) and halves the time a slow client holds a slot; a 6.4 MB image needs about 215 KB/s |
 | `server.shutdown_timeout`, `stop_grace_period` | 10s, 15s | kept | The grace period stays above the shutdown timeout |
 | `limits.workers` | 0 | kept | `GOMAXPROCS` goroutines are 2.8–5.7 times faster per image |
-| upper bound of `limits.max_iterations` | none | none | CPU is bounded by `timeout`, a canceled generator stops within 10 ms at any iteration count, and memory does not depend on iterations |
+| upper bound of `limits.max_iterations` | none | 2²⁰ | A canceled generator stops between pixels, so one pixel bounds the delay: at 2²⁰ at most 8 ms (Julia) and 35 ms (Newton of degree 8), while 10⁸ iterations ran 0.4 s past the deadline |
 | upper bound of `limits.max_depth` | none | none | The resolution limits the depth (Sierpiński 12, Koch 9 at 32768²), and those polygons take at most 14% of the RGBA buffer |
 | PNG compression | default | kept | `BestSpeed` is only 21% faster (the bar was 2×) and up to 18% larger |
 | `jpegQuality` | 90 | kept | 85 is only 15% smaller (the bar was 20%) |
@@ -280,7 +288,7 @@ at the same throughput.
 | `maxBandRows` | 128 | kept | Bounds the masks of narrow images; a 1024² image still has 8 bands for 8 workers |
 | `scratchCap` | 32 MiB | kept | 16 MiB is 26–31% slower at 4096², 64 MiB gives nothing more |
 | `maskBytes` | 8 | kept | A property of `x/image/vector` above 512 px, not a setting |
-| `checkEvery`, `fillCheckEvery`, `strokeCheckEvery` | 1<<20, 4096, 1024 | kept | Cancellation within 10 ms at 4096² |
+| `checkEvery`, `fillCheckEvery`, `strokeCheckEvery` | 1<<20, 4096, 1024 | kept | Cancellation within 10 ms at 4096² with the default `max_iterations`, within 35 ms at its bound |
 | `maxChords` | 1024 | kept | A guard: the widest line allowed (a quarter of 32768) needs 143 chords for a half circle |
 
 Not calibrated, because they set the look and not the cost: `maxSagitta`, `newtonFade`, `paletteSize`,

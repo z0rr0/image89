@@ -24,6 +24,11 @@ const (
 	maxCacheMaxAge = Duration(365 * 24 * time.Hour)
 	minMaxPixels   = 32 * 32
 	maxMaxPixels   = 1 << 30 // figure.MaxSide²
+	// maxMaxIterations bounds the iterations of one pixel. A generator checks
+	// ctx between pixels every 1<<20 iterations (fractal.checkEvery), so a
+	// canceled generation stops within twice that: 8 ms for Julia and 35 ms
+	// for Newton of degree 8 on an Apple M2 (docs/benchmarks.md).
+	maxMaxIterations = 1 << 20
 )
 
 // Sentinel errors returned by Load. A decode error from go-toml carries the
@@ -93,7 +98,7 @@ type Limits struct {
 	Timeout Duration `toml:"timeout"`
 	// Workers is the number of goroutines per image; 0 means GOMAXPROCS.
 	Workers int `toml:"workers"`
-	// MaxIterations caps the iterations of the pixel fractal presets.
+	// MaxIterations caps the iterations of the pixel fractal presets; at most 1<<20.
 	MaxIterations int `toml:"max_iterations"`
 	// MaxDepth caps the recursion depth of the outline fractal presets.
 	MaxDepth int `toml:"max_depth"`
@@ -203,7 +208,7 @@ func (l *Limits) validate() error {
 	checkRange(&v, "limits.queue_timeout", l.QueueTimeout, 0, maxTimeout)
 	v.positiveDuration("limits.timeout", l.Timeout)
 	checkMin(&v, "limits.workers", l.Workers, 0)
-	checkMin(&v, "limits.max_iterations", l.MaxIterations, 1)
+	checkRange(&v, "limits.max_iterations", l.MaxIterations, 1, maxMaxIterations)
 	checkMin(&v, "limits.max_depth", l.MaxDepth, 0)
 	return v.err()
 }

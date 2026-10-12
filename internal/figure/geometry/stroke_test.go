@@ -135,7 +135,10 @@ func TestStrokePoints(t *testing.T) {
 			if line.Closed {
 				segs = len(pts)
 			}
-			want := strokePoints(pts, segs, line.Closed, chordAngle(width/2))
+			want, err := strokePoints(t.Context(), pts, segs, line.Closed, chordAngle(width/2))
+			if err != nil {
+				t.Fatalf("%s: strokePoints error: %v", name, err)
+			}
 			if got > want || (got != want && (name == "koch" || name == "lissajous")) {
 				t.Errorf("%s width %v: Stroke has %d points, strokePoints = %d", name, width, got, want)
 			}
@@ -286,9 +289,34 @@ func TestStrokeCanceled(t *testing.T) {
 	if polys, err := Stroke(ctx, line, 4); !errors.Is(err, context.Canceled) || polys != nil {
 		t.Errorf("Stroke with a canceled ctx = %d polygons, %v; want %v", len(polys), err, context.Canceled)
 	}
-	// The first check passes, the check inside the loop stops it.
+	// The first check passes, the check of strokePoints stops it.
 	if polys, err := Stroke(newCountdown(1), line, 4); !errors.Is(err, context.Canceled) || polys != nil {
+		t.Errorf("Stroke canceled while counting = %d polygons, %v; want %v", len(polys), err, context.Canceled)
+	}
+	// The first check and both checks of strokePoints (3071 segments) pass, the
+	// check inside the loop stops it.
+	if polys, err := Stroke(newCountdown(3), line, 4); !errors.Is(err, context.Canceled) || polys != nil {
 		t.Errorf("Stroke canceled in the loop = %d polygons, %v; want %v", len(polys), err, context.Canceled)
+	}
+}
+
+// TestStrokeCanceledAllocs checks that a line canceled while its points are
+// counted allocates no points: only the context and the copy of Dedupe. It is
+// sequential, because AllocsPerRun is.
+func TestStrokeCanceledAllocs(t *testing.T) {
+	line := Polyline{Points: make([]Point, 3*strokeCheckEvery)}
+	for i := range line.Points {
+		line.Points[i] = Point{X: float64(i), Y: float64(i % 2)}
+	}
+	var err error
+	allocs := testing.AllocsPerRun(1, func() {
+		_, err = Stroke(newCountdown(1), line, 4)
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Stroke canceled while counting = %v, want %v", err, context.Canceled)
+	}
+	if allocs > 2 {
+		t.Errorf("Stroke canceled while counting made %v allocations, want at most 2", allocs)
 	}
 }
 

@@ -71,7 +71,11 @@ func Stroke(ctx context.Context, pl Polyline, width float64) ([]Polygon, error) 
 		segs = n
 	}
 	phi := chordAngle(r)
-	set := polygonSet{points: make([]Point, 0, strokePoints(pts, segs, pl.Closed, phi)), ends: make([]int, 0, 2*segs+2)}
+	size, err := strokePoints(ctx, pts, segs, pl.Closed, phi)
+	if err != nil {
+		return nil, err
+	}
+	set := polygonSet{points: make([]Point, 0, size), ends: make([]int, 0, 2*segs+2)}
 
 	first := newSegment(pts[0], pts[1], r)
 	prev := first
@@ -119,8 +123,9 @@ func turn(d1, d2 Point) float64 {
 // and k + 2 for every join or cap of k chords. The polygons that closePolygon drops make
 // the actual number smaller. One pass over the turns costs less than growing
 // the points by append, which copies them and keeps the old arrays until
-// the next GC.
-func strokePoints(pts []Point, segs int, closed bool, phi float64) int {
+// the next GC. It checks ctx every strokeCheckEvery segments, so a canceled
+// line allocates no points.
+func strokePoints(ctx context.Context, pts []Point, segs int, closed bool, phi float64) (int, error) {
 	arc := func(theta float64) int {
 		if theta == 0 {
 			return 0
@@ -132,14 +137,19 @@ func strokePoints(pts []Point, segs int, closed bool, phi float64) int {
 	prev := direction(pts[0], pts[1])
 	first := prev
 	for i := 1; i < segs; i++ {
+		if i%strokeCheckEvery == strokeCheckEvery-1 {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
+		}
 		cur := direction(pts[i], pts[(i+1)%n])
 		total += arc(turn(prev, cur))
 		prev = cur
 	}
 	if closed {
-		return total + arc(turn(prev, first))
+		return total + arc(turn(prev, first)), nil
 	}
-	return total + 2*arc(math.Pi)
+	return total + 2*arc(math.Pi), nil
 }
 
 // join adds the join at the vertex v from the segment s1 to s2: a bevel or a

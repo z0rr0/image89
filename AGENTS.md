@@ -54,10 +54,13 @@ Gotchas:
   with `checkTextFields`, which covers every `encoding.TextUnmarshaler` field found by its `toml` tag, so
   every config field needs a `toml` tag. Keys are matched as go-toml does, by `strings.ToLower` of key and
   tag, not `strings.EqualFold`: they differ for keys like `"tİmeout"` (U+0130).
-- `figure.ForRows` passes a dense worker index in `[0, min(workers, blocks))`, so per-worker state fits a slice.
+- `figure.ForRows` passes a dense worker index in `[0, min(workers, blocks))`. For per-worker state, normalize
+  `workers` to a positive `n` once (`0` means `GOMAXPROCS`, which the runtime may change at any time), allocate
+  the slice of length `n` and pass the same `n` to `ForRows`, never `0` again.
   It checks `ctx` only between blocks and cannot stop a running `fn`: a generator checks `ctx` inside `fn` by a
   budget of work. It returns the first `fn` error, else `ctx.Err()`. A panic in `fn` is re-raised in the caller
-  goroutine (as an error with the worker stack), so a recover there catches it.
+  goroutine (as an error with the worker stack), so a recover there catches it; `runtime.Goexit` in `fn` is
+  returned as an error.
 - `encode.Encode` checks `ctx` before every write to the output, so cancellation granularity is output bytes, not
   rows: PNG writes about every 32 KiB of compressed data and stops at the first failed write; JPEG writes every
   4 KiB and keeps encoding the whole image after a failed write. `Encode` does not check sides against `MaxSide`.

@@ -2,6 +2,7 @@ package figure
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
 	"runtime/debug"
@@ -12,14 +13,20 @@ import (
 // defaultRowsPerBlock is the block height used when ForRows gets rowsPerBlock <= 0.
 const defaultRowsPerBlock = 16
 
+// errWorkerExit means fn called runtime.Goexit, so some blocks may be left undone.
+var errWorkerExit = errors.New("figure.ForRows: worker exited by runtime.Goexit")
+
 // ForRows splits the rows [0, height) into blocks of rowsPerBlock rows and calls
 // fn(worker, y0, y1) for every block [y0, y1) exactly once from a pool of
 // goroutines. Blocks are taken in order from a shared counter.
 //
-// rowsPerBlock <= 0 means 16 and workers <= 0 means runtime.GOMAXPROCS(0). The
-// pool has n = min(workers, number of blocks) goroutines, and the worker index
-// passed to fn is dense in [0, n), so fn may keep per-worker state in a slice
-// of length workers. One worker calls fn sequentially.
+// rowsPerBlock <= 0 means 16 and workers <= 0 means runtime.GOMAXPROCS(0) read
+// during the call. The pool has n = min(workers, number of blocks) goroutines,
+// and the worker index passed to fn is dense in [0, n). One worker calls fn
+// sequentially. To keep per-worker state in a slice, normalize workers to a
+// positive value once, allocate the slice of that length and pass the same
+// value to ForRows: the runtime may change the default GOMAXPROCS between two
+// reads, so passing 0 again could start more workers than the slice holds.
 //
 // ctx is checked before every block. ForRows returns ctx.Err() without calling
 // fn if ctx is already done, and nil if height <= 0. The first error returned
@@ -29,7 +36,9 @@ const defaultRowsPerBlock = 16
 // itself, e.g. by a budget of work.
 //
 // A panic in fn stops the other workers and is raised again in the goroutine
-// that called ForRows, so a recover there (an HTTP middleware) handles it.
+// that called ForRows, so a recover there (an HTTP middleware) handles it; it
+// wins over any error. runtime.Goexit in fn stops the other workers as well
+// and counts as an error of fn, because some blocks are left undone.
 func ForRows(ctx context.Context, height, rowsPerBlock, workers int, fn func(worker, y0, y1 int) error) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -43,7 +52,7 @@ func ForRows(ctx context.Context, height, rowsPerBlock, workers int, fn func(wor
 	if workers <= 0 {
 		workers = runtime.GOMAXPROCS(0)
 	}
-	blocks := (height + rowsPerBlock - 1) / rowsPerBlock
+	blocks := 1 + (height-1)/rowsPerBlock // no overflow for any rowsPerBlock
 	workers = min(workers, blocks)
 
 	inner, cancel := context.WithCancel(ctx)
@@ -70,24 +79,36 @@ func ForRows(ctx context.Context, height, rowsPerBlock, workers int, fn func(wor
 		cancel()
 	}
 
+	work := func(worker int) {
+		for inner.Err() == nil {
+			b := int(next.Add(1) - 1)
+			if b >= blocks {
+				return
+			}
+			y0 := b * rowsPerBlock
+			if err := fn(worker, y0, y0+min(rowsPerBlock, height-y0)); err != nil {
+				stop(err, nil)
+				return
+			}
+		}
+	}
+
 	for worker := range workers {
 		wg.Go(func() {
+			finished := false
 			defer func() {
+				if finished {
+					return
+				}
+				// fn panicked or called runtime.Goexit, where recover returns nil.
 				if p := recover(); p != nil {
 					stop(nil, &panicError{value: p, stack: debug.Stack()})
+				} else {
+					stop(errWorkerExit, nil)
 				}
 			}()
-			for inner.Err() == nil {
-				b := int(next.Add(1) - 1)
-				if b >= blocks {
-					return
-				}
-				y0 := b * rowsPerBlock
-				if err := fn(worker, y0, min(y0+rowsPerBlock, height)); err != nil {
-					stop(err, nil)
-					return
-				}
-			}
+			work(worker)
+			finished = true
 		})
 	}
 	wg.Wait()

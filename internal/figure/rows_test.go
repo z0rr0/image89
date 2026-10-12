@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -35,7 +36,10 @@ func TestForRowsVisitsEveryRowOnce(t *testing.T) {
 		{height: 1000, rowsPerBlock: 16, workers: 4, wantBlock: 16, wantWorkers: 4},
 		{height: 1000, rowsPerBlock: 1, workers: 4, wantBlock: 1, wantWorkers: 4},
 		{height: 1000, rowsPerBlock: 0, workers: 4, wantBlock: defaultRowsPerBlock, wantWorkers: 4},
-		{height: 1000, rowsPerBlock: -1, workers: 0, wantBlock: defaultRowsPerBlock, wantWorkers: runtime.GOMAXPROCS(0)},
+		// workers 0 is GOMAXPROCS read inside ForRows; the runtime may change it after the
+		// table is built, so the bound is the number of blocks, ceil(1000/16).
+		{height: 1000, rowsPerBlock: -1, workers: 0, wantBlock: defaultRowsPerBlock, wantWorkers: 63},
+		{height: 1000, rowsPerBlock: math.MaxInt, workers: 4, wantBlock: math.MaxInt, wantWorkers: 1},
 	}
 
 	for _, tt := range tests {
@@ -207,6 +211,74 @@ func TestForRowsCancelDuringWork(t *testing.T) {
 	}
 	if n := calls.Load(); n != workers {
 		t.Errorf("fn called %d times, want %d: a block started after cancel", n, workers)
+	}
+}
+
+func TestForRowsGoexit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		workers   int
+		wantCalls int32 // 0 means any number
+	}{
+		{name: "one worker", workers: 1, wantCalls: 1},
+		{name: "many workers", workers: 4},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var calls atomic.Int32
+			err := ForRows(t.Context(), 1000, 1, tt.workers, func(_, y0, _ int) error {
+				calls.Add(1)
+				if y0 == 0 {
+					runtime.Goexit()
+				}
+				return nil
+			})
+			if !errors.Is(err, errWorkerExit) {
+				t.Fatalf("ForRows error = %v, want %v", err, errWorkerExit)
+			}
+			if n := calls.Load(); tt.wantCalls != 0 && n != tt.wantCalls {
+				t.Errorf("fn called %d times, want %d", n, tt.wantCalls)
+			}
+		})
+	}
+}
+
+// TestForRowsPanicWinsOverError holds both workers inside fn until both have
+// started, so the error of one and the panic of the other are both recorded.
+func TestForRowsPanicWinsOverError(t *testing.T) {
+	t.Parallel()
+
+	const workers = 2
+	started := make(chan struct{}, workers)
+	release := make(chan struct{})
+	go func() {
+		for range workers {
+			<-started
+		}
+		close(release)
+	}()
+
+	r := catchPanic(func() {
+		_ = ForRows(t.Context(), workers, 1, workers, func(_, y0, _ int) error {
+			started <- struct{}{}
+			<-release
+			if y0 == 0 {
+				return errBoom
+			}
+			panic("bad block")
+		})
+	})
+	err, ok := r.(error)
+	if !ok {
+		t.Fatalf("recovered %T %v, want a panic error", r, r)
+	}
+	if !strings.Contains(err.Error(), "bad block") || errors.Is(err, errBoom) {
+		t.Errorf("panic = %q, want the panic of the second block, not %v", err.Error(), errBoom)
 	}
 }
 

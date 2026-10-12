@@ -68,13 +68,16 @@ colors = ["#e63946", "#2a9d8f", "#457b9d", "#f4a261", "#8338ec", "#06d6a0", "#ff
 background = "#000000"
 
 [types.sierpinski]
+# Small images draw fewer levels: the smallest triangles stay at least 4 px wide.
 depth = 7
 padding = 0.05
 color = "#1d3557"
 background = "#ffffff"
 
 [types.koch]
+# Small images draw fewer levels: every segment stays at least 1 px long.
 depth = 5
+# The line is at least 1 px wide.
 line_width = 0.004
 padding = 0.05
 color = "#1d3557"
@@ -86,7 +89,9 @@ a = 3
 b = 2
 # π/2
 delta = 1.5707963267948966
-# Number of curve points: 0 chooses it from the image size, otherwise 16..65536.
+# Number of curve points: 0 chooses ⌈π·R·max(a, b)⌉ within 256..65536, where R is
+# half the shorter image side, so neighboring points are about 2 px apart;
+# otherwise 16..65536.
 points = 0
 line_width = 0.004
 padding = 0.05

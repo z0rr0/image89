@@ -1,0 +1,71 @@
+{{define "title"}}{{.Name}} · Image89{{end}}
+{{define "content"}}
+<h1>{{.Name}}</h1>
+<p><img src="/koch/640x480/" width="640" height="480" alt="The Koch snowflake"></p>
+
+<p>Start with an equilateral triangle. Split every side into three equal parts, build a smaller
+equilateral triangle outwards on the middle part and remove its base. Every side becomes four segments
+a third as long. Repeat with every segment, forever. After <i>n</i> steps a triangle with the side
+<i>s</i> has</p>
+
+<math display="block">
+  <msub><mi>N</mi><mi>n</mi></msub><mo>=</mo><mn>3</mn><mo>·</mo><msup><mn>4</mn><mi>n</mi></msup>
+  <mspace width="0.5em"></mspace><mtext>segments and the perimeter</mtext><mspace width="0.5em"></mspace>
+  <msub><mi>P</mi><mi>n</mi></msub><mo>=</mo><mn>3</mn><mi>s</mi>
+  <msup><mrow><mo>(</mo><mfrac><mn>4</mn><mn>3</mn></mfrac><mo>)</mo></mrow><mi>n</mi></msup>
+  <mo>→</mo><mi>∞</mi>
+</math>
+
+<p>The perimeter grows without limit, while the area stays finite and tends to 8/5 of the starting
+triangle. Each side is made of four copies of itself at a third of the size, which gives the fractal
+dimension</p>
+
+<math display="block">
+  <mi>D</mi><mo>=</mo>
+  <mfrac><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.17em"></mspace><mn>4</mn></mrow><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.17em"></mspace><mn>3</mn></mrow></mfrac>
+  <mo>≈</mo><mn>1.262</mn>
+</math>
+
+<h2>History</h2>
+<p>The Swedish mathematician Helge von Koch described the curve in 1904, in a paper whose title
+promised a continuous curve without a tangent, obtained by an elementary geometric construction.
+Mathematicians already knew such curves from the formulas of Karl Weierstrass, but they were hard to
+imagine; Koch's construction made the idea easy to draw. The snowflake is three of his curves joined
+around a triangle.</p>
+
+<h2>Interesting facts</h2>
+<ul>
+<li>The curve has a corner at every scale, so it has no tangent at any point, even though it never
+breaks.</li>
+<li>An infinitely long border encloses a finite area: the snowflake fits in the circle around the
+starting triangle.</li>
+<li>Measuring it with a shorter ruler always gives a longer result. Lewis Fry Richardson found the same
+for real coastlines, and Benoit Mandelbrot built on it in his 1967 paper "How Long Is the Coast of
+Britain?"</li>
+<li>Bumps built inwards instead of outwards give the anti-snowflake.</li>
+<li>The first step turns the triangle into a six-pointed star, and the outline never leaves the hexagon
+around that star.</li>
+</ul>
+
+<h2>How Image89 draws it</h2>
+<p>Image89 draws the outline as a dark blue line on white, with round joins at the corners. The preset
+depth is 5, which gives 3072 segments. Segments shorter than a pixel would only blur, so the depth drops
+for small images until every segment is at least a pixel long:</p>
+
+<math display="block">
+  <mi>d</mi><mo>=</mo><mi>min</mi><mo>⁡</mo><mo>(</mo><mn>5</mn><mo>,</mo>
+  <mo>⌊</mo><msub><mi>log</mi><mn>3</mn></msub><mo>⁡</mo><mi>s</mi><mo>⌋</mo><mo>)</mo>
+</math>
+
+<p>where <i>s</i> is the side of the triangle in pixels. The line is 0.4% of the shorter side of the
+image wide, but at least one pixel. The snowflake is fitted without distortion, with a margin of 5% of
+the shorter side plus half the line. The preset lives in the <code>[types.koch]</code> section of the
+config.</p>
+
+<h2>Examples</h2>
+<ul>
+<li><a href="/koch/">1024×1024 PNG</a></li>
+<li><a href="/koch/1920x1080/?format=jpeg">1920×1080 JPEG</a></li>
+<li><a href="/koch/4096x4096/">4096×4096 PNG</a></li>
+</ul>
+{{end}}

@@ -1,0 +1,69 @@
+{{define "title"}}{{.Name}} · Image89{{end}}
+{{define "content"}}
+<h1>{{.Name}}</h1>
+<p><img src="/sierpinski/640x480/" width="640" height="480" alt="The Sierpiński triangle"></p>
+
+<p>Take a filled equilateral triangle, join the midpoints of its sides and cut out the middle triangle.
+Three smaller triangles remain, each half as wide. Do the same with each of them, and again, forever.
+After <i>n</i> steps there are</p>
+
+<math display="block">
+  <msub><mi>N</mi><mi>n</mi></msub><mo>=</mo><msup><mn>3</mn><mi>n</mi></msup>
+  <mspace width="0.5em"></mspace><mtext>triangles, with the area</mtext><mspace width="0.5em"></mspace>
+  <msub><mi>A</mi><mi>n</mi></msub><mo>=</mo>
+  <msup><mrow><mo>(</mo><mfrac><mn>3</mn><mn>4</mn></mfrac><mo>)</mo></mrow><mi>n</mi></msup>
+  <msub><mi>A</mi><mn>0</mn></msub>
+  <mo>→</mo><mn>0</mn>
+</math>
+
+<p>The area left in the end is zero, and yet the shape is far from empty. Doubling it gives three
+copies of itself, so its fractal dimension lies between a line and a surface:</p>
+
+<math display="block">
+  <mi>D</mi><mo>=</mo>
+  <mfrac><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.17em"></mspace><mn>3</mn></mrow><mrow><mi>log</mi><mo>⁡</mo><mspace width="0.17em"></mspace><mn>2</mn></mrow></mfrac>
+  <mo>≈</mo><mn>1.585</mn>
+</math>
+
+<h2>History</h2>
+<p>The Polish mathematician Wacław Sierpiński described the triangle in 1915 as a curve in which every
+point is a branching point, and a year later a square version, now called the Sierpiński carpet. The
+pattern itself is much older: the Cosmati family of stone workers laid it into the floors of Italian
+churches in the twelfth and thirteenth centuries, for example in the cathedral of Anagni.</p>
+
+<h2>Interesting facts</h2>
+<ul>
+<li>Color the odd numbers of Pascal's triangle and the even ones stay blank: the odd ones draw the
+Sierpiński triangle.</li>
+<li>The chaos game draws it with random numbers: start at any point, jump halfway towards a randomly
+chosen corner, mark the point and repeat. Michael Barnsley, who gave the method its name, described it in
+his 1988 book <i>Fractals Everywhere</i>.</li>
+<li>The area tends to zero, while the total length of the borders grows without limit: every step
+multiplies it by 3/2.</li>
+<li>The graph of the moves of the Tower of Hanoi puzzle has the same shape.</li>
+<li>A single curve without crossings, the Sierpiński arrowhead curve, comes as close to the triangle as
+you like.</li>
+</ul>
+
+<h2>How Image89 draws it</h2>
+<p>Image89 builds the exact triangles and fills them with dark blue on white; the gaps are the
+background. The preset depth is 7, which gives 3<sup>7</sup> = 2187 triangles. Details smaller than a
+few pixels would only blur, so the depth drops for small images until the smallest triangles are at
+least 4 pixels wide:</p>
+
+<math display="block">
+  <mi>d</mi><mo>=</mo><mi>min</mi><mo>⁡</mo><mo>(</mo><mn>7</mn><mo>,</mo>
+  <mo>⌊</mo><msub><mi>log</mi><mn>2</mn></msub><mo>⁡</mo><mo>(</mo><mi>s</mi><mo>/</mo><mn>4</mn><mo>)</mo><mo>⌋</mo><mo>)</mo>
+</math>
+
+<p>where <i>s</i> is the side of the triangle in pixels; a 32×32 image shows depth 2. The triangle is
+fitted into the image without distortion, with a margin of 5% of the shorter side. The preset lives in
+the <code>[types.sierpinski]</code> section of the config.</p>
+
+<h2>Examples</h2>
+<ul>
+<li><a href="/sierpinski/">1024×1024 PNG</a></li>
+<li><a href="/sierpinski/1920x1080/?format=jpeg">1920×1080 JPEG</a></li>
+<li><a href="/sierpinski/64x64/">64×64 PNG</a> with fewer levels</li>
+</ul>
+{{end}}

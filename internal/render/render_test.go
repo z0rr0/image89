@@ -458,7 +458,7 @@ func TestKinds(t *testing.T) {
 	t.Parallel()
 
 	r := New(config.Default())
-	want := []figure.Kind{figure.Mandelbrot, figure.Julia, figure.Newton}
+	want := figure.Kinds()
 	got := r.Kinds()
 	if !slices.Equal(got, want) {
 		t.Fatalf("Kinds() = %v, want %v", got, want)

@@ -37,15 +37,14 @@ func TestIndex(t *testing.T) {
 			}
 		}
 	}
-	// Only the kinds given to New are listed, and only the pages that exist are linked.
+	// Only the kinds given to New are listed, each with its info page.
 	if strings.Contains(index, "/koch/") {
 		t.Error("index lists koch, which was not given")
 	}
-	if !strings.Contains(index, `<a href="/mandelbrot/info/">`) {
-		t.Error("index has no link to the mandelbrot info page")
-	}
-	if strings.Contains(index, `<a href="/julia/info/">`) {
-		t.Error("index links the julia info page, which does not exist")
+	for _, kind := range kinds {
+		if link := `<a href="/` + string(kind) + `/info/">About</a>`; !strings.Contains(index, link) {
+			t.Errorf("index has no link %q", link)
+		}
 	}
 }
 
@@ -70,30 +69,37 @@ func TestVersionEscaped(t *testing.T) {
 // tags matches HTML tags and the MathML formulas, which are not prose.
 var tags = regexp.MustCompile(`(?s)<math.*?</math>|<[^>]*>`)
 
-func TestInfoMandelbrot(t *testing.T) {
+func TestInfoPages(t *testing.T) {
 	t.Parallel()
 
-	p, err := New("v1", []figure.Kind{figure.Mandelbrot})
+	p, err := New("v1", nil)
 	if err != nil {
 		t.Fatalf("New error: %v", err)
 	}
-	page, err := p.Info(figure.Mandelbrot)
-	if err != nil {
-		t.Fatalf("Info error: %v", err)
-	}
-	s := string(page)
-	for _, want := range []string{
-		"<title>Mandelbrot set · Image89</title>", "<h1>Mandelbrot set</h1>", `<math display="block">`, "<msubsup>", "Image89 v1",
-	} {
-		if !strings.Contains(s, want) {
-			t.Errorf("info page does not contain %q", want)
-		}
-	}
+	for _, kind := range figure.Kinds() {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
 
-	_, main, _ := strings.Cut(s, "<main>")
-	main, _, _ = strings.Cut(main, "</main>")
-	if words := len(strings.Fields(tags.ReplaceAllString(main, " "))); words < 300 || words > 500 {
-		t.Errorf("info page has %d words, want 300–500", words)
+			page, err := p.Info(kind)
+			if err != nil {
+				t.Fatalf("Info error: %v", err)
+			}
+			s, name := string(page), figureName(kind)
+			for _, want := range []string{
+				"<title>" + name + " · Image89</title>", "<h1>" + name + "</h1>", `<math display="block">`,
+				`<img src="/` + string(kind) + `/640x480/"`, `<a href="/` + string(kind) + `/">`, "Image89 v1",
+			} {
+				if !strings.Contains(s, want) {
+					t.Errorf("info page does not contain %q", want)
+				}
+			}
+
+			_, main, _ := strings.Cut(s, "<main>")
+			main, _, _ = strings.Cut(main, "</main>")
+			if words := len(strings.Fields(tags.ReplaceAllString(main, " "))); words < 300 || words > 500 {
+				t.Errorf("info page has %d words, want 300–500", words)
+			}
+		})
 	}
 }
 
@@ -104,7 +110,7 @@ func TestInfoUnknown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New error: %v", err)
 	}
-	for _, kind := range []figure.Kind{figure.Julia, "nope"} {
+	for _, kind := range []figure.Kind{"", "nope", "Mandelbrot"} {
 		page, err := p.Info(kind)
 		if !errors.Is(err, figure.ErrUnknownKind) || page != nil {
 			t.Errorf("Info(%q) = %d bytes, %v; want %v", kind, len(page), err, figure.ErrUnknownKind)

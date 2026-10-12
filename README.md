@@ -6,9 +6,8 @@
 
 It is a web application and CLI tool to generate math images.
 
-> **In development.** The CLI and the HTTP server generate `mandelbrot`, `julia` and `newton` images;
-> `sierpinski`, `koch` and `lissajous` are not implemented yet and give an "unknown figure kind" error (404 over HTTP).
-> Only the Mandelbrot set has an info page so far.
+> **In development.** The CLI and the HTTP server generate all six figures, and each of them has an info
+> page; benchmarks and the final tuning of the limits are still to come.
 
 ## Usage
 
@@ -83,7 +82,7 @@ is redirected with `307` to the path with the slash, keeping the query.
 | `200` | image (`image/png` or `image/jpeg` with `Content-Length`) or page (`text/html; charset=utf-8`) |
 | `307` | the path has no trailing slash |
 | `400` | invalid size (`640X480`, a side outside 32–65536), unknown format, more than `limits.max_pixels` pixels, a JPEG side over 65535 |
-| `404` | unknown or not implemented type, unknown path |
+| `404` | unknown type, unknown path |
 | `405` | a method other than `GET` and `HEAD` |
 | `503` + `Retry-After: 1` | all `limits.max_concurrent` slots are busy and the queue is full or `limits.queue_timeout` passed |
 | `503` | the image was not generated and encoded within `limits.timeout` |
@@ -123,6 +122,26 @@ server {
 }
 ```
 
+## Figures
+
+| Type | Figure | Drawing |
+|---|---|---|
+| `mandelbrot` | Mandelbrot set | every pixel is a point of the complex plane, colored by its smooth escape time |
+| `julia` | Julia set of z² + c | the same with `c` fixed by the preset and the pixel as the start value |
+| `newton` | Newton fractal of zⁿ − 1 | every pixel is colored by the root that Newton's method reaches from it |
+| `sierpinski` | Sierpiński triangle | 3^d filled triangles |
+| `koch` | Koch snowflake | an outline of 3·4^d segments drawn as a line |
+| `lissajous` | Lissajous curve x = sin(a·t + δ), y = sin(b·t) | a closed line through points of the curve |
+
+The pixel fractals show the whole visible area of the preset at any proportions: one axis shows more
+of the plane, nothing is stretched. The other three figures are built as geometry, fitted into the image
+without distortion with a padding and anti-aliased. Their detail follows the image size: the depth of
+`sierpinski` drops until the smallest triangles are at least 4 px wide (a 32×32 image shows depth 2), the
+depth of `koch` until every segment is at least 1 px long. Lines are `line_width` of the shorter side
+wide, but at least 1 px, with round joins. With `points = 0` the Lissajous curve takes
+⌈π·R·max(a, b)⌉ points, where R is half the shorter side, from 256 to 65 536, so that neighboring points
+are about 2 px apart. Every type has an info page at `/<type>/info/` with its history and formulas.
+
 ## Configuration
 
 Both modes work without a config file. `-c config.toml` loads a TOML file on top of the built-in
@@ -147,11 +166,14 @@ max_concurrent × (4 · max_pixels + 32 MiB + encoded image size)
 
 where `4 · max_pixels` is the RGBA buffer and 32 MiB caps the rasterizer scratch memory.
 With the defaults (`max_concurrent = 2`, `max_pixels = 16777216`) that is about 2 × (64 + 32) MiB
-plus the encoded images.
+plus the encoded images. The polygons of a contour figure come on top: a few MiB with the default
+presets, up to about 30 MiB for a Koch snowflake of depth 7 at 4096×4096.
 
 ## Build
 
-Requires Go 1.27 and [golangci-lint](https://golangci-lint.run/) v2.
+Requires Go 1.27 and [golangci-lint](https://golangci-lint.run/) v2. Besides the standard library the
+code uses [go-toml](https://github.com/pelletier/go-toml) for the config and
+[golang.org/x/image/vector](https://pkg.go.dev/golang.org/x/image/vector) to rasterize the contour figures.
 
 ```sh
 make build   # ./image89 with version info from git

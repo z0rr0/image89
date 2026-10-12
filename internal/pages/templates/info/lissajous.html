@@ -1,0 +1,66 @@
+{{define "title"}}{{.Name}} · Image89{{end}}
+{{define "content"}}
+<h1>{{.Name}}</h1>
+<p><img src="/lissajous/640x480/" width="640" height="480" alt="A Lissajous curve"></p>
+
+<p>A Lissajous curve is the path of a point that swings left and right and up and down at the same
+time, with two different rhythms:</p>
+
+<math display="block">
+  <mi>x</mi><mo>=</mo><mi>sin</mi><mo>⁡</mo><mo>(</mo><mi>a</mi><mi>t</mi><mo>+</mo><mi>δ</mi><mo>)</mo><mo>,</mo>
+  <mspace width="1em"></mspace>
+  <mi>y</mi><mo>=</mo><mi>sin</mi><mo>⁡</mo><mo>(</mo><mi>b</mi><mi>t</mi><mo>)</mo>
+</math>
+
+<p>The frequencies <i>a</i> and <i>b</i> set the number of loops, and the phase <i>δ</i> shifts one
+swing against the other. When <i>a</i> and <i>b</i> are whole numbers, the curve closes and repeats
+itself after</p>
+
+<math display="block">
+  <mn>0</mn><mo>≤</mo><mi>t</mi><mo>&lt;</mo>
+  <mfrac><mrow><mn>2</mn><mi>π</mi></mrow><mrow><mi>gcd</mi><mo>⁡</mo><mo>(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>)</mo></mrow></mfrac>
+</math>
+
+<p>This is the only figure of Image89 that is not a fractal: it is a smooth line.</p>
+
+<h2>History</h2>
+<p>The American mathematician Nathaniel Bowditch studied these curves in 1815 with a pendulum that swings
+in two directions, so they are also called Bowditch curves. In 1857 the French physicist Jules Antoine
+Lissajous made sound visible with them: he fixed small mirrors to two tuning forks vibrating at right
+angles and bounced a beam of light off both onto a screen. The shape of the light figure showed the ratio
+of the two pitches.</p>
+
+<h2>Interesting facts</h2>
+<ul>
+<li>With <i>a</i> = <i>b</i> the curve is an ellipse: a circle for <i>δ</i> = π/2 and a straight line for
+<i>δ</i> = 0.</li>
+<li>Engineers compared an unknown frequency with a known one on an oscilloscope: the ratio can be read
+from the loops of the figure.</li>
+<li>When the ratio of the frequencies is not a fraction, the curve never closes and comes arbitrarily
+close to every point of its rectangle.</li>
+<li>The logo of the Australian Broadcasting Corporation is a Lissajous figure: its designer Bill Kennard
+took it from an oscilloscope trace in the 1960s.</li>
+<li>The Victorian harmonograph, a table with two pendulums and a pen, draws Lissajous curves that slowly
+spiral inwards as the pendulums lose energy.</li>
+</ul>
+
+<h2>How Image89 draws it</h2>
+<p>Image89 uses <i>a</i> = 3, <i>b</i> = 2 and <i>δ</i> = π/2 by default; the preset allows frequencies
+from 1 to 32. The curve is approximated by points joined into a closed red line on white. By default
+their number depends on the image, so that neighboring points are about two pixels apart:</p>
+
+<math display="block">
+  <mi>N</mi><mo>=</mo><mo>⌈</mo><mi>π</mi><mi>R</mi><mo>·</mo><mi>max</mi><mo>⁡</mo><mo>(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>)</mo><mo>⌉</mo>
+</math>
+
+<p>where <i>R</i> is half the shorter side in pixels, from 256 to 65 536 points. The line is 0.4% of the
+shorter side wide, but at least one pixel, and the curve is fitted without distortion with a margin of 5%
+of the shorter side. The preset lives in the <code>[types.lissajous]</code> section of the config.</p>
+
+<h2>Examples</h2>
+<ul>
+<li><a href="/lissajous/">1024×1024 PNG</a></li>
+<li><a href="/lissajous/1920x1080/?format=jpeg">1920×1080 JPEG</a></li>
+<li><a href="/lissajous/480x640/">480×640 PNG</a></li>
+</ul>
+{{end}}

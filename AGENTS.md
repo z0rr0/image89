@@ -15,7 +15,8 @@ This document provides information for AI agents working on the **Image89** code
 ├── image89.go           # main: flags, version, logger, config loading, signal ctx, mode selection, runServer
 ├── internal/config/     # Config, Default(), Load(path), presets, Duration, Color, validation
 ├── internal/figure/     # Kind, Kinds(), ParseKind, Size, ParseSize, side limits, ForRows row scheduler
-│   └── fractal/         # Mandelbrot, Julia, Newton: viewport, palette, iterations, shared pixel loop (plane)
+│   ├── fractal/         # Mandelbrot, Julia, Newton: viewport, palette, iterations, shared pixel loop (plane)
+│   └── geometry/        # Sierpinski, Koch, Lissajous: Fit, Stroke into polygons, banded Fill with x/image/vector
 ├── internal/encode/     # Format, Parse, ContentType/Ext/MaxSide, ctx-aware Encode to PNG or JPEG
 ├── internal/render/     # Generator, Request, Renderer: registry, Validate, slots with a bounded queue, timeout
 ├── internal/cli/        # CLI mode: OutputName, Run into a new file (O_EXCL), removes the file on any error
@@ -117,6 +118,24 @@ Gotchas:
   every page view asks for `/favicon.ico` and logs a 404 warning.
 - Server tests: queue and cancel tests call `Handler.ServeHTTP` directly inside `testing/synctest` (no network)
   with a `fakeWriter` that blocks in `Write`; lifecycle tests use a real listener on `127.0.0.1:0` and real time.
+- `golang.org/x/image/vector` sums signed coverage and clamps `|sum|` to 1: polygons of opposite orientations
+  cancel where they overlap. Every polygon goes through `polygonSet`, which gives it a positive signed area.
+  An edge shared by two polygons cancels exactly only if both take its ends from the same `Point` values:
+  `Stroke` computes the shifted ends of a segment once and reuses them in the rectangle (6 points, the ends
+  of the center line are vertices too), the joins and the caps. Joins and caps are `arc` sectors, a bevel is
+  an arc of one chord; the inner side of a turn is left to the overlapping rectangles.
+- `Fill` rasterizes bands of rows, one mask per worker. `Draw` indexes the mask from `r.Min` and needs `r` of
+  exactly the mask size (the full image with the band rectangle, no `SubImage`); `Draw` consumes the mask, so
+  `Reset` comes before every band. Masks are fixed point (4 B/px) up to 512 px per side, float (8 B/px)
+  above. The band shift is subtracted after the `float32` conversion. The output does not depend on the
+  number of workers, but bands of another height change anti-aliased pixels by ±1: the accumulator carries
+  the rounding residue of a row into the next one until the end of the mask. Tests compare the painted area
+  per row, not bytes. `fill(…, rows, scratch)` takes the band height and the scratch cap for tests and
+  returns the number of rasterizers it created.
+- The center of a Sierpinski image lies on the top side of the removed middle triangle, an anti-aliased edge;
+  tests check the centroid `(1/2, √3/6)`, which is inside the removed triangle at every depth from 1 on.
+- Geometry tests are parallel: their hot loops run inside `x/image/vector`, which `-cover` does not
+  instrument, so the package takes about 2 s under `-race -cover`.
 
 ## Code Style Conventions
 

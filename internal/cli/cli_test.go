@@ -176,11 +176,6 @@ func TestRunRejectsBeforeCreating(t *testing.T) {
 	}{
 		{name: "small size", opts: func(o Options) Options { o.Width = 10; return o }, want: figure.ErrInvalidSize},
 		{name: "unknown kind", opts: func(o Options) Options { o.Kind = "nope"; return o }, want: figure.ErrUnknownKind},
-		{
-			name: "kind without generator",
-			opts: func(o Options) Options { o.Kind = string(figure.Sierpinski); return o },
-			want: figure.ErrUnknownKind,
-		},
 		{name: "unknown format", opts: func(o Options) Options { o.Format = "gif"; return o }, want: encode.ErrUnknownFormat},
 		{
 			name: "output with trailing separator",

@@ -135,7 +135,6 @@ func TestImageRequests(t *testing.T) {
 		{name: "small size", target: "/mandelbrot/10x10/", status: http.StatusBadRequest},
 		{name: "invalid size", target: "/mandelbrot/abc/", status: http.StatusBadRequest},
 		{name: "unknown kind", target: "/nope/64x48/", status: http.StatusNotFound},
-		{name: "kind without generator", target: "/sierpinski/64x48/", status: http.StatusNotFound},
 		{name: "too many pixels", target: "/mandelbrot/8192x8192/", status: http.StatusBadRequest},
 		{name: "side too large for jpeg", target: "/mandelbrot/65536x32/?format=jpeg", status: http.StatusBadRequest},
 		{name: "post", method: http.MethodPost, target: "/mandelbrot/64x48/", status: http.StatusMethodNotAllowed},
@@ -417,7 +416,8 @@ func TestPages(t *testing.T) {
 		{name: "index head", method: http.MethodHead, target: "/", status: http.StatusOK},
 		{name: "info", target: "/mandelbrot/info/", status: http.StatusOK, contains: "<math"},
 		{name: "info without slash", target: "/mandelbrot/info", status: http.StatusTemporaryRedirect, location: "/mandelbrot/info/"},
-		{name: "info without page", target: "/julia/info/", status: http.StatusNotFound},
+		// The pages do not depend on the kinds of the index.
+		{name: "info of a kind not in the index", target: "/sierpinski/info/", status: http.StatusOK, contains: "<math"},
 		{name: "info of unknown kind", target: "/nope/info/", status: http.StatusNotFound},
 	}
 
@@ -446,5 +446,27 @@ func TestPages(t *testing.T) {
 				t.Errorf("body does not contain %q", tt.contains)
 			}
 		})
+	}
+}
+
+// noInfoPages are pages without any info page.
+type noInfoPages struct{}
+
+func (noInfoPages) Index() []byte { return []byte("index") }
+
+func (noInfoPages) Info(kind figure.Kind) ([]byte, error) {
+	return nil, errors.Join(figure.ErrUnknownKind, fmt.Errorf("%q has no info page", kind))
+}
+
+func TestInfoWithoutPage(t *testing.T) {
+	t.Parallel()
+
+	s := New(config.Default(), &stubRenderer{}, noInfoPages{}, testVersion)
+	rec := serveRequest(t, s, http.MethodGet, "/koch/info/")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("/koch/info/ = %d, want 404", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "unknown figure kind") {
+		t.Errorf("body = %q, want the error", body)
 	}
 }

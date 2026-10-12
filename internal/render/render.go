@@ -17,6 +17,7 @@ import (
 	"github.com/z0rr0/image89/internal/encode"
 	"github.com/z0rr0/image89/internal/figure"
 	"github.com/z0rr0/image89/internal/figure/fractal"
+	"github.com/z0rr0/image89/internal/figure/geometry"
 )
 
 // Sentinel errors of Validate and Render.
@@ -69,6 +70,9 @@ func New(cfg *config.Config) *Renderer {
 		figure.Mandelbrot: fractal.NewMandelbrot(cfg.Types.Mandelbrot, workers),
 		figure.Julia:      fractal.NewJulia(cfg.Types.Julia, workers),
 		figure.Newton:     fractal.NewNewton(cfg.Types.Newton, workers),
+		figure.Sierpinski: geometry.NewSierpinski(cfg.Types.Sierpinski, workers),
+		figure.Koch:       geometry.NewKoch(cfg.Types.Koch, workers),
+		figure.Lissajous:  geometry.NewLissajous(cfg.Types.Lissajous, workers),
 	})
 }
 

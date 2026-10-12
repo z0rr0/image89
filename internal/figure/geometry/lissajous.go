@@ -64,13 +64,18 @@ func lissajousCount(points, a, b int, size figure.Size) int {
 // in math coordinates at t = T·i/n for i in [0, n). The curve closes after
 // the period T = 2π/gcd(a, b), so the point of t = T, equal to the first one,
 // is not included.
+//
+// x is computed as sin(a·t)·cos δ + cos(a·t)·sin δ: in the sum a·t + δ a large
+// δ, which the config accepts, would absorb a·t and turn the curve into a line.
 func lissajousPoints(a, b int, delta float64, n int) []Point {
 	period := 2 * math.Pi / float64(gcd(a, b))
 	fa, fb := float64(a), float64(b)
+	sinDelta, cosDelta := math.Sincos(delta)
 	pts := make([]Point, n)
 	for i := range pts {
 		t := period * float64(i) / float64(n)
-		pts[i] = Point{X: math.Sin(fa*t + delta), Y: math.Sin(fb * t)}
+		sin, cos := math.Sincos(fa * t)
+		pts[i] = Point{X: sin*cosDelta + cos*sinDelta, Y: math.Sin(fb * t)}
 	}
 	return pts
 }

@@ -20,6 +20,27 @@ func TestLissajousCircle(t *testing.T) {
 	}
 }
 
+// TestLissajousLargePhase checks a phase that the config accepts but that
+// would absorb a·t in the sum a·t + δ and flatten the curve into a line.
+func TestLissajousLargePhase(t *testing.T) {
+	t.Parallel()
+
+	const n = 1024
+	for _, delta := range []float64{1e20, -1e300} {
+		pts := lissajousPoints(3, 2, delta, n)
+		if dx := Bounds(pts).Dx(); dx < 1.99 {
+			t.Errorf("delta %g: the curve spans %v along X, want about 2", delta, dx)
+		}
+		sinDelta, cosDelta := math.Sincos(delta)
+		for i, p := range pts {
+			at := 3 * 2 * math.Pi * float64(i) / n
+			if want := math.Sin(at)*cosDelta + math.Cos(at)*sinDelta; math.Abs(p.X-want) > 1e-12 {
+				t.Fatalf("delta %g: point %d has x %v, want %v", delta, i, p.X, want)
+			}
+		}
+	}
+}
+
 func TestLissajousPeriod(t *testing.T) {
 	t.Parallel()
 

@@ -62,8 +62,13 @@ func (l *look) stroke(ctx context.Context, size figure.Size, line Polyline) (*im
 }
 
 // paint returns an image of size with polys, in pixel coordinates, painted
-// in the color over the background; a nil image on an error.
+// in the color over the background; a nil image on an error. It checks ctx
+// before allocating the image, so a request canceled while its geometry was
+// built does not take 4·W·H bytes.
 func (l *look) paint(ctx context.Context, size figure.Size, polys []Polygon) (*image.RGBA, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	img := image.NewRGBA(image.Rect(0, 0, size.Width, size.Height))
 	FillBackground(img, l.background)
 	if err := Fill(ctx, img, polys, l.color, l.workers); err != nil {

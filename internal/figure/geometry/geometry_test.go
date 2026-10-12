@@ -170,6 +170,34 @@ func TestGenerateErrors(t *testing.T) {
 	}
 }
 
+// TestPaintCanceled checks that a request canceled while its geometry was
+// built does not allocate the image.
+func TestPaintCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	l := look{workers: 1}
+	size := figure.Size{Width: 4096, Height: 4096}
+	var (
+		img *image.RGBA
+		err error
+	)
+	allocs := testing.AllocsPerRun(1, func() {
+		img, err = l.paint(ctx, size, nil)
+	})
+	if !errors.Is(err, context.Canceled) || img != nil {
+		t.Errorf("paint = %v, %v; want no image and %v", img != nil, err, context.Canceled)
+	}
+	if allocs != 0 {
+		t.Errorf("paint with a canceled ctx made %v allocations, want none", allocs)
+	}
+
+	// The check of paint passes, the one of Fill stops it.
+	img, err = l.paint(newCountdown(1), figure.Size{Width: 64, Height: 48}, nil)
+	if !errors.Is(err, context.Canceled) || img != nil {
+		t.Errorf("paint canceled in Fill = %v, %v; want no image and %v", img != nil, err, context.Canceled)
+	}
+}
+
 func BenchmarkGenerate(b *testing.B) {
 	size := figure.Size{Width: 1024, Height: 1024}
 	for name, g := range generators(0) {

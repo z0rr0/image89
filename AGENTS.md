@@ -99,6 +99,9 @@ Gotchas:
   calls `Close`. `run(ctx, ...)` takes a parent ctx, so tests start and stop the server with a canceled ctx.
   `server.New` captures `slog.Default()` for the `http.Server` `ErrorLog`, so it must run after the final
   `slog.SetDefault` (the debug logger from the config).
+- `docker-compose.yml` has `stop_grace_period: 15s`, longer than the default `server.shutdown_timeout` (10s):
+  Docker's own default grace period is also 10s, and SIGKILL would cut the graceful shutdown. Keep the grace
+  period above `shutdown_timeout` when changing either.
 - Routes: `GET /{kind}/{$}`, `/{kind}/{size}/{$}`, `/{kind}/info/{$}` (the literal `info` wins over `{size}`).
   Go 1.27 `ServeMux` redirects a path without the trailing slash with **307**, keeping the query.
   `GET` patterns serve `HEAD` too; the image sink skips the body for `HEAD`.

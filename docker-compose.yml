@@ -16,3 +16,7 @@ services:
       retries: 3
       start_period: 5s
     restart: unless-stopped
+    # Longer than server.shutdown_timeout (10s by default): on SIGTERM the server
+    # lets active requests finish within shutdown_timeout, and Docker sends
+    # SIGKILL when the grace period ends. Raise both together.
+    stop_grace_period: 15s

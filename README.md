@@ -173,6 +173,11 @@ docker compose up -d
 Create `./config.toml` before `docker compose up`: if it is missing, Docker creates a directory
 in its place.
 
+Docker sends SIGTERM on stop and SIGKILL after a grace period, 10s by default, which equals the
+default `server.shutdown_timeout`. The compose file sets `stop_grace_period: 15s`, so a graceful
+shutdown has time to finish; raise it together with `shutdown_timeout`, and pass
+`--stop-timeout` (`docker run`) or `-t` (`docker stop`) when running the image without compose.
+
 `make docker-push` publishes a linux/amd64 + linux/arm64 image; it requires a git tag.
 
 ## License

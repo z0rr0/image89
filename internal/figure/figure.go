@@ -87,6 +87,11 @@ func (s Size) Validate() error {
 	return nil
 }
 
+// String returns the size as "<width>x<height>", the form ParseSize accepts.
+func (s Size) String() string {
+	return strconv.Itoa(s.Width) + "x" + strconv.Itoa(s.Height)
+}
+
 // Pixels returns Width × Height without overflow for any valid size.
 func (s Size) Pixels() int64 {
 	return int64(s.Width) * int64(s.Height)

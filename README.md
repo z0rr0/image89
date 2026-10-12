@@ -6,15 +6,17 @@
 
 It is a web application and CLI tool to generate math images.
 
-> **In development.** The flags and endpoints below describe the target behavior;
-> image generation and the HTTP server are not implemented yet.
+> **In development.** The CLI generates `mandelbrot` and `julia` images; the other four
+> types and the HTTP server are not implemented yet. The endpoints below describe the target behavior.
 
 ## Usage
 
 ### CLI
 
 ```sh
+./image89                                          # creates output.png, 1024×1024 mandelbrot
 ./image89 -w 640 -h 480 -t julia -f jpeg -o pic   # creates pic.jpg
+./image89 -w 1920 -h 1080 -o wall.png             # the extension is kept as given
 ./image89 -v                                       # print version and exit
 ./image89 -help                                    # print usage
 ```
@@ -31,6 +33,27 @@ It is a web application and CLI tool to generate math images.
 | `-v` | print version and exit |
 
 `-h` is the image height, so help is available only via `-help`.
+
+The output name gets the extension of the format (`.png` or `.jpg`) only if it has none, so
+`-o pic.png -f jpeg` writes a JPEG image into `pic.png`. An existing file is never overwritten:
+the run fails with `output file already exists` and the file stays as it was. If generation fails
+or is interrupted with Ctrl-C (SIGINT or SIGTERM), the unfinished file is removed. The log record
+of a created image (path, size, bytes, duration) goes to stderr; the exit code is 0 on success,
+1 on an error and 2 on invalid flags.
+
+The CLI obeys the same `[limits]` as the server: with the defaults an image has at most
+16 777 216 pixels (`-w 8192 -h 8192` is rejected) and must be generated and encoded within 30s.
+Raise `limits.max_pixels` and `limits.timeout` in a config passed with `-c` for larger images;
+the config check still requires `server.write_timeout` to exceed `limits.queue_timeout + limits.timeout`:
+
+```toml
+[server]
+write_timeout = "130s"
+
+[limits]
+max_pixels = 67108864 # 8192 × 8192
+timeout = "120s"
+```
 
 ### Server
 

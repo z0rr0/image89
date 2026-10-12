@@ -12,10 +12,13 @@ This document provides information for AI agents working on the **Image89** code
 
 ```
 .
-├── image89.go           # main: flags, version, logger, config loading, mode selection
+├── image89.go           # main: flags, version, logger, config loading, signal ctx, mode selection
 ├── internal/config/     # Config, Default(), Load(path), presets, Duration, Color, validation
 ├── internal/figure/     # Kind, Kinds(), ParseKind, Size, ParseSize, side limits, ForRows row scheduler
+│   └── fractal/         # Mandelbrot, Julia: viewport, palette, escape iteration, shared escape-time loop
 ├── internal/encode/     # Format, Parse, ContentType/Ext/MaxSide, ctx-aware Encode to PNG or JPEG
+├── internal/render/     # Generator, Request, Renderer: registry, Validate, slots with a bounded queue, timeout
+├── internal/cli/        # CLI mode: OutputName, Run into a new file (O_EXCL), removes the file on any error
 ├── docs/config.toml     # annotated config, every value equals config.Default()
 ├── Makefile             # build, test, lint, dist, docker targets
 ├── Dockerfile           # multi-stage image z0rr0/image89
@@ -39,7 +42,7 @@ Build and test commands:
 - `go test -race -cover ./...`
 - `go test -v -race ./internal/config` - Run tests for specific package
 - `go test -v -run TestValidate ./internal/config` - Run specific test
-- `go test -bench . -benchmem -run '^$' ./internal/figure ./internal/encode` - Run benchmarks
+- `go test -bench . -benchmem -run '^$' ./internal/...` - Run benchmarks
 
 Gotchas:
 
@@ -66,6 +69,20 @@ Gotchas:
   4 KiB and keeps encoding the whole image after a failed write. `Encode` does not check sides against `MaxSide`.
 - `png.Decode` returns `*image.RGBA` only for opaque truecolor images; tests that compare `Pix` use opaque images.
 - gosec G115 reports `int` to `uint8` conversions; mask a value already in range with `& 0xff`.
+- `go test -race -cover` makes every basic block update an atomic coverage counter through the race runtime, and
+  goroutines contend on the same counters: a pixel loop gets 10–50× slower. Tests that generate images keep the
+  total of pixels × iterations small (low preset iterations for size checks), run sequentially and use one worker;
+  hot loops are written with one block per iteration (`escapeJulia`).
+- Escape convention in `fractal`: `|z|² > r2` is checked before every update, `n` is the number of updates;
+  `n < maxIter` means escaped, `n == maxIter` means inside. Products are wrapped in `float64()` against FMA.
+- Mandelbrot and Julia share one unexported loop (`escapeTime` in `escape.go`) parameterized by the escape
+  function; `dupl` is on, so new pixel fractals reuse it instead of copying the loop.
+- `render.Render` order: `Validate`, `ctx.Err()`, non-blocking slot try, then `ErrQueueFull` when `max_queued`
+  requests wait, then a wait bounded by `queue_timeout` (`ErrBusy` joined with `DeadlineExceeded` or `Canceled`).
+  `timeout` starts after the slot is taken; the slot is released after `sink` returns (also on a panic).
+  Queue and timeout tests use `testing/synctest`, so they need no sleeps and run in virtual time.
+- `cli.createFile` opens with `0o644` under `//nolint:gosec` (G302); paths go through `filepath.Clean` (G304),
+  in tests too.
 
 ## Code Style Conventions
 

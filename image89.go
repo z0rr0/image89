@@ -3,20 +3,25 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/z0rr0/image89/internal/cli"
 	"github.com/z0rr0/image89/internal/config"
 	"github.com/z0rr0/image89/internal/encode"
 	"github.com/z0rr0/image89/internal/figure"
+	"github.com/z0rr0/image89/internal/render"
 )
 
 // name is the service name shown in the build info line.
@@ -151,10 +156,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	slog.SetDefault(setupLogger(stderr, cfg.Server.Debug))
 
+	// SIGINT or SIGTERM cancels ctx: the CLI stops generating and removes the
+	// unfinished file. Signals stay caught until run returns.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	if opts.serve {
-		err = runServer(cfg, opts)
+		err = runServer(ctx, cfg, opts)
 	} else {
-		err = runCLI(cfg, opts)
+		err = runCLI(ctx, cfg, opts)
 	}
 	if err != nil {
 		slog.Error("failed to run", "error", err)
@@ -172,13 +182,19 @@ func loadConfig(path string) (*config.Config, error) {
 	return config.Load(path)
 }
 
-// runCLI generates one image into a file.
-func runCLI(_ *config.Config, _ options) error {
-	return errNotImplemented
+// runCLI generates one image into a new file.
+func runCLI(ctx context.Context, cfg *config.Config, opts options) error {
+	return cli.Run(ctx, render.New(cfg), cli.Options{
+		Width:  opts.width,
+		Height: opts.height,
+		Kind:   opts.kind,
+		Output: opts.output,
+		Format: opts.format,
+	})
 }
 
-// runServer serves images over HTTP until it is stopped.
-func runServer(_ *config.Config, _ options) error {
+// runServer serves images over HTTP until ctx is canceled.
+func runServer(_ context.Context, _ *config.Config, _ options) error {
 	return errNotImplemented
 }
 

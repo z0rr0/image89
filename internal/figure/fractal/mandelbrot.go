@@ -1,0 +1,31 @@
+package fractal
+
+import (
+	"context"
+	"image"
+
+	"github.com/z0rr0/image89/internal/config"
+	"github.com/z0rr0/image89/internal/figure"
+)
+
+// Mandelbrot draws the Mandelbrot set: the points c for which the orbit of
+// z ← z² + c from z = 0 stays bounded.
+type Mandelbrot struct {
+	e escapeTime
+}
+
+// NewMandelbrot returns a generator of the preset p, which must be valid, that
+// uses workers goroutines per image (0 means GOMAXPROCS). It copies what it
+// needs from p, so later changes of p do not affect it.
+func NewMandelbrot(p config.Mandelbrot, workers int) *Mandelbrot {
+	maxIter := p.Iterations
+	escape := func(c complex128) (int, complex128) { return escapeMandelbrot(c, maxIter) }
+	center := complex(p.Center[0], p.Center[1])
+	return &Mandelbrot{e: newEscapeTime(center, p.Width, p.Height, maxIter, p.Palette, workers, escape)}
+}
+
+// Generate draws an image of the given size. It returns a nil image and the
+// error when ctx is done before the image is complete or the size is invalid.
+func (m *Mandelbrot) Generate(ctx context.Context, size figure.Size) (*image.RGBA, error) {
+	return m.e.generate(ctx, size)
+}

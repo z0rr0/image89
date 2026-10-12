@@ -240,9 +240,15 @@ func TestRun(t *testing.T) {
 	prev := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(prev) })
 
-	missing := filepath.Join(t.TempDir(), "missing.toml")
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "missing.toml")
 	invalid := writeFile(t, "invalid.toml", "[limits]\nmax_concurrent = 0\n")
 	debug := writeFile(t, "debug.toml", "[server]\ndebug = true\n")
+	existing := writeFile(t, "existing.png", "keep")
+	// Images are small and go to the temp dir, never to output.png in the repo.
+	image := func(name string, args ...string) []string {
+		return append([]string{"-w", "64", "-h", "48", "-o", filepath.Join(dir, name)}, args...)
+	}
 
 	tests := []struct {
 		name       string
@@ -250,19 +256,26 @@ func TestRun(t *testing.T) {
 		code       int
 		wantStdout string
 		wantStderr string
+		wantFile   string
 	}{
 		{name: "version", args: []string{"-v"}, code: exitOK, wantStdout: versionInfo() + "\n"},
 		{name: "version with height", args: []string{"-h", "480", "-v"}, code: exitOK, wantStdout: versionInfo() + "\n"},
 		{name: "help", args: []string{"-help"}, code: exitOK, wantStderr: "-h int"},
 		{name: "positional argument", args: []string{"extra"}, code: exitUsage, wantStderr: "unexpected arguments"},
 		{name: "unknown flag", args: []string{"-x"}, code: exitUsage, wantStderr: "flag provided but not defined"},
-		{name: "cli", args: nil, code: exitError, wantStderr: errNotImplemented.Error()},
+		{name: "cli", args: image("pic"), code: exitOK, wantStderr: "image created", wantFile: "pic.png"},
+		{name: "cli exists", args: []string{"-w", "64", "-h", "48", "-o", existing}, code: exitError, wantStderr: "already exists"},
+		{name: "cli invalid size", args: image("small", "-w", "10"), code: exitError, wantStderr: "invalid image size"},
 		{name: "server", args: []string{"-s"}, code: exitError, wantStderr: errNotImplemented.Error()},
 		{name: "version ignores config", args: []string{"-v", "-c", missing}, code: exitOK, wantStdout: versionInfo() + "\n"},
-		{name: "docs config", args: []string{"-c", "docs/config.toml"}, code: exitError, wantStderr: errNotImplemented.Error()},
+		{
+			name: "docs config", args: image("docs", "-c", "docs/config.toml", "-t", "julia", "-f", "jpeg"),
+			code: exitOK, wantStderr: "image created", wantFile: "docs.jpg",
+		},
 		{name: "missing config", args: []string{"-c", missing}, code: exitError, wantStderr: "failed to load config"},
 		{name: "invalid config", args: []string{"-s", "-c", invalid}, code: exitError, wantStderr: "limits.max_concurrent"},
-		{name: "debug config", args: []string{"-c", debug}, code: exitError, wantStderr: "source=image89.go:"},
+		// The run fails in image89.go, so its log record has the short source.
+		{name: "debug config", args: image("debug", "-c", debug, "-t", "nope"), code: exitError, wantStderr: "source=image89.go:"},
 	}
 
 	for _, tt := range tests {
@@ -276,6 +289,11 @@ func TestRun(t *testing.T) {
 			}
 			if !strings.Contains(stderr.String(), tt.wantStderr) {
 				t.Errorf("stderr does not contain %q:\n%s", tt.wantStderr, stderr.String())
+			}
+			if tt.wantFile != "" {
+				if _, err := os.Stat(filepath.Join(dir, tt.wantFile)); err != nil {
+					t.Errorf("output file: %v", err)
+				}
 			}
 		})
 	}

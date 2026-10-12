@@ -187,3 +187,27 @@ func TestSizePixels(t *testing.T) {
 		}
 	}
 }
+
+func TestSizeString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		size Size
+		want string
+	}{
+		{size: Size{Width: 640, Height: 480}, want: "640x480"},
+		{size: Size{Width: MaxSide, Height: MinSide}, want: "65536x32"},
+		{size: Size{}, want: "0x0"},
+	}
+
+	for _, tt := range tests {
+		if got := tt.size.String(); got != tt.want {
+			t.Errorf("%+v.String() = %q, want %q", tt.size, got, tt.want)
+		}
+		if tt.size.Validate() == nil {
+			if parsed, err := ParseSize(tt.size.String()); err != nil || parsed != tt.size {
+				t.Errorf("ParseSize(%q) = %+v, %v, want %+v", tt.size.String(), parsed, err, tt.size)
+			}
+		}
+	}
+}

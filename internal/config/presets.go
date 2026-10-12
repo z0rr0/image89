@@ -11,6 +11,11 @@ const (
 	minPaletteColors = 2
 	minNewtonDegree  = 3
 	maxNewtonDegree  = 8
+	// minNewtonEpsilon is the chosen lower bound of the Newton tolerance, with a
+	// margin over float64 rounding: below about 1e-16 many orbits stagnate at
+	// the rounding level without passing the tolerance, and the square of a
+	// tolerance below about 1e-162 underflows to zero, which no point passes.
+	minNewtonEpsilon = 1e-12
 	maxLissajousFreq = 32
 	minLissajousPts  = 16
 	maxLissajousPts  = 65536
@@ -55,7 +60,7 @@ type Newton struct {
 	Degree     int     `toml:"degree"`
 	Width      float64 `toml:"width"`
 	Height     float64 `toml:"height"`
-	// Epsilon is the convergence tolerance.
+	// Epsilon is the convergence tolerance, at least 1e-12.
 	Epsilon float64 `toml:"epsilon"`
 	// Colors paints the basin of each root; it needs at least Degree colors.
 	Colors []Color `toml:"colors"`
@@ -181,7 +186,9 @@ func (p *Newton) validate(v *validator, limits *Limits) {
 	checkRange(v, "types.newton.degree", p.Degree, minNewtonDegree, maxNewtonDegree)
 	v.positive("types.newton.width", p.Width)
 	v.positive("types.newton.height", p.Height)
-	v.positive("types.newton.epsilon", p.Epsilon)
+	if v.finite("types.newton.epsilon", p.Epsilon) {
+		checkMin(v, "types.newton.epsilon", p.Epsilon, minNewtonEpsilon)
+	}
 	// The degree is clamped, so an invalid degree is reported only once.
 	v.colors("types.newton.colors", p.Colors, min(max(p.Degree, minNewtonDegree), maxNewtonDegree))
 }

@@ -48,8 +48,11 @@ const newtonMinDeriv2 = 1e-200
 // of steps done. Before every step it checks |zⁿ − 1|² < eps2, so a point at a
 // root gives 0 steps; a step shorter than eps (|Δz|² < eps2) also means
 // convergence and is counted. A vanishing derivative or maxIter steps without
-// convergence give k = −1. The arithmetic is real with explicitly rounded
-// products, as in escapeJulia, so every architecture gets the same result.
+// convergence give k = −1. eps2 must be positive; below about 1e-32 many
+// orbits stagnate at the rounding level of float64 and stay unconverged (the
+// config keeps epsilon at least 1e-12). The arithmetic is real with
+// explicitly rounded products, as in escapeJulia, so every architecture gets
+// the same result.
 func newtonRoot(z complex128, degree int, eps2 float64, maxIter int) (int, int) {
 	x, y := real(z), imag(z)
 	scale := float64(degree)

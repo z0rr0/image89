@@ -62,6 +62,7 @@ iterations = 64
 degree = 3
 width = 4.0
 height = 4.0
+# Convergence tolerance, at least 1e-12 (a margin over float64 rounding: below about 1e-16 many points never converge).
 epsilon = 1e-06
 colors = ["#e63946", "#2a9d8f", "#457b9d", "#f4a261", "#8338ec", "#06d6a0", "#ffbe0b", "#ff006e"]
 background = "#000000"

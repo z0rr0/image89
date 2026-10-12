@@ -147,3 +147,31 @@ func BenchmarkNewton(b *testing.B) {
 		}
 	}
 }
+
+// TestNewtonMinEpsilon checks the smallest tolerance the config accepts: for
+// every degree each point of the default area converges to the same root as
+// with the default tolerance, or to none in both cases. The iteration limit
+// is high, because a smaller tolerance takes a step or two more.
+func TestNewtonMinEpsilon(t *testing.T) {
+	t.Parallel()
+
+	const (
+		minEpsilon = 1e-12 // the lower bound of types.newton.epsilon in config
+		maxIter    = 512
+	)
+	p := config.Default().Types.Newton
+	size := figure.Size{Width: 64, Height: 48}
+	view := newViewport(0, p.Width, p.Height, size)
+	for degree := 3; degree <= 8; degree++ {
+		for y := range size.Height {
+			for x := range size.Width {
+				z := view.At(x, y)
+				k, _ := newtonRoot(z, degree, minEpsilon*minEpsilon, maxIter)
+				want, _ := newtonRoot(z, degree, p.Epsilon*p.Epsilon, maxIter)
+				if k != want {
+					t.Fatalf("degree %d: newtonRoot(%v) with epsilon %g = root %d, want %d", degree, z, minEpsilon, k, want)
+				}
+			}
+		}
+	}
+}

@@ -276,6 +276,10 @@ func TestValidate(t *testing.T) {
 		{"newton zero height", func(c *Config) { c.Types.Newton.Height = 0 }, ErrOutOfRange, "types.newton.height"},
 		{"newton zero epsilon", func(c *Config) { c.Types.Newton.Epsilon = 0 }, ErrOutOfRange, "types.newton.epsilon"},
 		{"newton nan epsilon", func(c *Config) { c.Types.Newton.Epsilon = math.NaN() }, ErrNotFinite, "types.newton.epsilon"},
+		{"newton inf epsilon", func(c *Config) { c.Types.Newton.Epsilon = math.Inf(1) }, ErrNotFinite, "types.newton.epsilon"},
+		{"newton tiny epsilon", func(c *Config) { c.Types.Newton.Epsilon = 1e-200 }, ErrOutOfRange, "types.newton.epsilon"},
+		{"newton epsilon below min", func(c *Config) { c.Types.Newton.Epsilon = 9e-13 }, ErrOutOfRange, "types.newton.epsilon"},
+		{"newton min epsilon", func(c *Config) { c.Types.Newton.Epsilon = minNewtonEpsilon }, nil, ""},
 		{"newton fewer colors than degree", func(c *Config) {
 			c.Types.Newton.Degree = 5
 			c.Types.Newton.Colors = c.Types.Newton.Colors[:4]

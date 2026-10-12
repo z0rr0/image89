@@ -84,6 +84,9 @@ Gotchas:
   0 steps; a step with `|Δz|² < eps²` also converges and is counted; `|zⁿ⁻¹|² < newtonMinDeriv2` or `maxIter`
   steps give `k = −1` (background). The root index is the nearest root by angle. Color: a gradient from
   `colors[k]` to the background, at most `newtonFade` of the way, so a converged pixel never equals the background.
+  `types.newton.epsilon` is at least 1e-12 (`minNewtonEpsilon`), a chosen bound with a margin over float64
+  rounding: below about 1e-16 many orbits stagnate at the rounding level above the tolerance (an exact root still
+  passes any positive `eps²`), and below about 1e-162 `eps²` underflows to 0, which no point passes.
 - `render.Render` order: `Validate`, `ctx.Err()`, non-blocking slot try, then `ErrQueueFull` when `max_queued`
   requests wait, then a wait bounded by `queue_timeout` (`ErrBusy` joined with `DeadlineExceeded` or `Canceled`).
   `timeout` starts after the slot is taken; the slot is released after `sink` returns (also on a panic).

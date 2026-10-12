@@ -10,6 +10,9 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/z0rr0/image89/internal/encode"
+	"github.com/z0rr0/image89/internal/figure"
 )
 
 func TestVersionInfo(t *testing.T) {
@@ -33,10 +36,10 @@ func TestParseFlags(t *testing.T) {
 
 	defaults := func(set ...string) options {
 		opts := options{
-			width:  defaultSide,
-			height: defaultSide,
-			kind:   defaultKind,
-			format: defaultFormat,
+			width:  figure.DefaultSide,
+			height: figure.DefaultSide,
+			kind:   string(figure.DefaultKind),
+			format: string(encode.PNG),
 			set:    make(map[string]bool, len(set)),
 		}
 		for _, name := range set {
@@ -172,9 +175,14 @@ func TestParseFlagsUsage(t *testing.T) {
 		t.Fatalf("parseFlags(-help) error = %v, want flag.ErrHelp", err)
 	}
 	usage := stderr.String()
-	for _, want := range []string{"-help", "-h int", "image height", "-w int", "-t string", "-c string", "-s", "-v"} {
+	for _, want := range []string{"-help", "-h int", "image height", "-w int", "-t string", "-c string", "-s", "-v", "min 32, max 65536"} {
 		if !strings.Contains(usage, want) {
 			t.Errorf("usage does not contain %q:\n%s", want, usage)
+		}
+	}
+	for _, k := range figure.Kinds() {
+		if !strings.Contains(usage, string(k)) {
+			t.Errorf("usage does not list the image type %q:\n%s", k, usage)
 		}
 	}
 }

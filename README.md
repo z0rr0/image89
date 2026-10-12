@@ -23,7 +23,7 @@ It is a web application and CLI tool to generate math images.
 |---|---|
 | `-w` | image width (default 1024, min 32, max 65536) |
 | `-h` | image height (default 1024, min 32, max 65536) |
-| `-t` | image type (default `mandelbrot`) |
+| `-t` | image type: `mandelbrot` (default), `julia`, `newton`, `sierpinski`, `koch`, `lissajous` |
 | `-o` | output file (default `output.<ext>`); an existing file is never overwritten |
 | `-f` | output format: `png` (default) or `jpeg` |
 | `-c` | path to a TOML config (optional) |

@@ -11,20 +11,16 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/z0rr0/image89/internal/config"
+	"github.com/z0rr0/image89/internal/encode"
+	"github.com/z0rr0/image89/internal/figure"
 )
 
 // name is the service name shown in the build info line.
 const name = "Image89"
-
-// Defaults of the image flags.
-const (
-	defaultSide   = 1024
-	defaultKind   = "mandelbrot"
-	defaultFormat = "png"
-)
 
 // Exit codes returned by run.
 const (
@@ -83,11 +79,12 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 	fs.SetOutput(stderr)
 
 	opts := options{set: make(map[string]bool)}
-	fs.IntVar(&opts.width, "w", defaultSide, "image width (min 32, max 65536)")
-	fs.IntVar(&opts.height, "h", defaultSide, "image height (min 32, max 65536)")
-	fs.StringVar(&opts.kind, "t", defaultKind, "image type")
+	sides := fmt.Sprintf("(min %d, max %d)", figure.MinSide, figure.MaxSide)
+	fs.IntVar(&opts.width, "w", figure.DefaultSide, "image width "+sides)
+	fs.IntVar(&opts.height, "h", figure.DefaultSide, "image height "+sides)
+	fs.StringVar(&opts.kind, "t", string(figure.DefaultKind), "image type: "+kindNames())
 	fs.StringVar(&opts.output, "o", "", "output file (default output.<ext>; an existing file is never overwritten)")
-	fs.StringVar(&opts.format, "f", defaultFormat, "output format: png or jpeg")
+	fs.StringVar(&opts.format, "f", string(encode.PNG), "output format: png or jpeg")
 	fs.StringVar(&opts.config, "c", "", "path to TOML config (optional)")
 	fs.BoolVar(&opts.serve, "s", false, "run as web server")
 	fs.BoolVar(&opts.version, "v", false, "print version and exit")
@@ -112,6 +109,16 @@ func parseFlags(args []string, stderr io.Writer) (options, error) {
 
 	fs.Visit(func(f *flag.Flag) { opts.set[f.Name] = true })
 	return opts, nil
+}
+
+// kindNames returns the figure kinds as a comma-separated list for the usage.
+func kindNames() string {
+	kinds := figure.Kinds()
+	names := make([]string, 0, len(kinds))
+	for _, k := range kinds {
+		names = append(names, string(k))
+	}
+	return strings.Join(names, ", ")
 }
 
 func main() {

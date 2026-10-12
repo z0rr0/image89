@@ -14,6 +14,8 @@ This document provides information for AI agents working on the **Image89** code
 .
 ├── image89.go           # main: flags, version, logger, config loading, mode selection
 ├── internal/config/     # Config, Default(), Load(path), presets, Duration, Color, validation
+├── internal/figure/     # Kind, Kinds(), ParseKind, Size, ParseSize, side limits, ForRows row scheduler
+├── internal/encode/     # Format, Parse, ContentType/Ext/MaxSide, ctx-aware Encode to PNG or JPEG
 ├── docs/config.toml     # annotated config, every value equals config.Default()
 ├── Makefile             # build, test, lint, dist, docker targets
 ├── Dockerfile           # multi-stage image z0rr0/image89
@@ -37,6 +39,7 @@ Build and test commands:
 - `go test -race -cover ./...`
 - `go test -v -race ./internal/config` - Run tests for specific package
 - `go test -v -run TestValidate ./internal/config` - Run specific test
+- `go test -bench . -benchmem -run '^$' ./internal/figure ./internal/encode` - Run benchmarks
 
 Gotchas:
 
@@ -51,6 +54,15 @@ Gotchas:
   with `checkTextFields`, which covers every `encoding.TextUnmarshaler` field found by its `toml` tag, so
   every config field needs a `toml` tag. Keys are matched as go-toml does, by `strings.ToLower` of key and
   tag, not `strings.EqualFold`: they differ for keys like `"tİmeout"` (U+0130).
+- `figure.ForRows` passes a dense worker index in `[0, min(workers, blocks))`, so per-worker state fits a slice.
+  It checks `ctx` only between blocks and cannot stop a running `fn`: a generator checks `ctx` inside `fn` by a
+  budget of work. It returns the first `fn` error, else `ctx.Err()`. A panic in `fn` is re-raised in the caller
+  goroutine (as an error with the worker stack), so a recover there catches it.
+- `encode.Encode` checks `ctx` before every write to the output, so cancellation granularity is output bytes, not
+  rows: PNG writes about every 32 KiB of compressed data and stops at the first failed write; JPEG writes every
+  4 KiB and keeps encoding the whole image after a failed write. `Encode` does not check sides against `MaxSide`.
+- `png.Decode` returns `*image.RGBA` only for opaque truecolor images; tests that compare `Pix` use opaque images.
+- gosec G115 reports `int` to `uint8` conversions; mask a value already in range with `& 0xff`.
 
 ## Code Style Conventions
 

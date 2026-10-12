@@ -163,7 +163,7 @@ func TestFillWorkers(t *testing.T) {
 func TestBandRows(t *testing.T) {
 	t.Parallel()
 
-	for width, want := range map[int]int{1: maxBandRows, 200: maxBandRows, 8192: 128, 8193: 127, 65536: 16, 1 << 21: 1} {
+	for width, want := range map[int]int{1: maxBandRows, 200: maxBandRows, 4096: 128, 4097: 127, 32768: 16, 65536: 8, 1 << 20: 1} {
 		if got := bandRows(width); got != want {
 			t.Errorf("bandRows(%d) = %d, want %d", width, got, want)
 		}
@@ -179,11 +179,12 @@ func TestRasterWorkers(t *testing.T) {
 		scratch                      int
 		want                         int
 	}{
-		{name: "scratch limit", width: 65536, height: 256, rows: 16, workers: 16, scratch: scratchCap, want: 4},
+		{name: "scratch limit", width: 32768, height: 256, rows: 32, workers: 16, scratch: scratchCap, want: 4},
+		{name: "default band", width: 32768, height: 256, rows: bandRows(32768), workers: 16, scratch: scratchCap, want: 8},
 		{name: "workers limit", width: 1024, height: 1024, rows: 128, workers: 3, scratch: scratchCap, want: 3},
 		{name: "bands limit", width: 200, height: 100, rows: 128, workers: 8, scratch: scratchCap, want: 1},
 		{name: "4096 square", width: 4096, height: 4096, rows: 128, workers: 16, scratch: scratchCap, want: 8},
-		{name: "at least one", width: 65536, height: 256, rows: 16, workers: 16, scratch: 1, want: 1},
+		{name: "at least one", width: 32768, height: 256, rows: 32, workers: 16, scratch: 1, want: 1},
 	}
 	for _, tt := range tests {
 		if got := rasterWorkers(tt.width, tt.height, tt.rows, tt.workers, tt.scratch); got != tt.want {

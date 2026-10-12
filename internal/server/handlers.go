@@ -110,7 +110,7 @@ func errorStatus(err error) (int, bool) {
 	case errors.Is(err, figure.ErrUnknownKind):
 		return http.StatusNotFound, false
 	case errors.Is(err, figure.ErrInvalidSize), errors.Is(err, render.ErrTooManyPixels),
-		errors.Is(err, render.ErrSideTooLarge), errors.Is(err, encode.ErrUnknownFormat):
+		errors.Is(err, encode.ErrUnknownFormat):
 		return http.StatusBadRequest, false
 	case errors.Is(err, render.ErrQueueFull), errors.Is(err, render.ErrBusy):
 		return http.StatusServiceUnavailable, true

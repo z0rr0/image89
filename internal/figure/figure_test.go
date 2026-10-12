@@ -83,12 +83,14 @@ func TestParseSize(t *testing.T) {
 		{text: "640x480", want: Size{Width: 640, Height: 480}},
 		{text: "480x640", want: Size{Width: 480, Height: 640}},
 		{text: "32x32", want: Size{Width: 32, Height: 32}},
-		{text: "65536x32", want: Size{Width: 65536, Height: 32}},
-		{text: "65536x65536", want: Size{Width: 65536, Height: 65536}},
+		{text: "32768x32", want: Size{Width: 32768, Height: 32}},
+		{text: "32768x32768", want: Size{Width: 32768, Height: 32768}},
 		{text: "0x0", wantErr: true},
 		{text: "31x100", wantErr: true},
 		{text: "100x31", wantErr: true},
-		{text: "65537x32", wantErr: true},
+		{text: "32769x32", wantErr: true},
+		{text: "32x32769", wantErr: true},
+		{text: "65536x32", wantErr: true},
 		{text: "640X480", wantErr: true},
 		{text: "640x", wantErr: true},
 		{text: "x480", wantErr: true},
@@ -178,7 +180,7 @@ func TestSizePixels(t *testing.T) {
 	}{
 		{size: Size{Width: 640, Height: 480}, want: 307200},
 		{size: Size{Width: MinSide, Height: MinSide}, want: 1024},
-		{size: Size{Width: MaxSide, Height: MaxSide}, want: 1 << 32},
+		{size: Size{Width: MaxSide, Height: MaxSide}, want: 1 << 30},
 	}
 
 	for _, tt := range tests {
@@ -196,7 +198,7 @@ func TestSizeString(t *testing.T) {
 		want string
 	}{
 		{size: Size{Width: 640, Height: 480}, want: "640x480"},
-		{size: Size{Width: MaxSide, Height: MinSide}, want: "65536x32"},
+		{size: Size{Width: MaxSide, Height: MinSide}, want: "32768x32"},
 		{size: Size{}, want: "0x0"},
 	}
 

@@ -111,6 +111,47 @@ func TestStrokeCoverage(t *testing.T) {
 	}
 }
 
+// TestStrokePoints checks that the capacity Stroke allocates holds all its
+// points, so the points never grow by append: the count is exact when no
+// polygon is dropped and an upper bound otherwise.
+func TestStrokePoints(t *testing.T) {
+	t.Parallel()
+
+	cases := strokeCases()
+	cases["koch"] = Polyline{Points: scale(kochOutline(4).Points, 180, 10), Closed: true}
+	cases["lissajous"] = Polyline{Points: scale(lissajousPoints(3, 2, math.Pi/2, 500), 90, 100), Closed: true}
+	for name, line := range cases {
+		for _, width := range []float64{1, 10, 60} {
+			polys, err := Stroke(t.Context(), line, width)
+			if err != nil {
+				t.Fatalf("%s: Stroke error: %v", name, err)
+			}
+			got := 0
+			for _, poly := range polys {
+				got += len(poly)
+			}
+			pts := Dedupe(line.Points, line.Closed)
+			segs := len(pts) - 1
+			if line.Closed {
+				segs = len(pts)
+			}
+			want := strokePoints(pts, segs, line.Closed, chordAngle(width/2))
+			if got > want || (got != want && (name == "koch" || name == "lissajous")) {
+				t.Errorf("%s width %v: Stroke has %d points, strokePoints = %d", name, width, got, want)
+			}
+		}
+	}
+}
+
+// scale returns pts scaled by k and shifted by d along both axes.
+func scale(pts []Point, k, d float64) []Point {
+	out := make([]Point, len(pts))
+	for i, p := range pts {
+		out[i] = Point{X: d + k*p.X, Y: d + k*p.Y}
+	}
+	return out
+}
+
 func TestStrokeJoins(t *testing.T) {
 	t.Parallel()
 
@@ -175,11 +216,11 @@ func TestChords(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		if got := chords(tt.r, tt.theta); got != tt.want {
+		if got := chords(chordAngle(tt.r), tt.theta); got != tt.want {
 			t.Errorf("chords(%v, %v) = %d, want %d", tt.r, tt.theta, got, tt.want)
 		}
 		// Every chord of the result is within maxSagitta of the arc.
-		if got := chords(tt.r, tt.theta); got < maxChords {
+		if got := chords(chordAngle(tt.r), tt.theta); got < maxChords {
 			if gap := tt.r * (1 - math.Cos(tt.theta/float64(got)/2)); gap > maxSagitta+1e-12 && tt.r > maxSagitta/2 {
 				t.Errorf("chords(%v, %v) = %d leaves a gap of %v px", tt.r, tt.theta, got, gap)
 			}

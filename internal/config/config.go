@@ -23,7 +23,7 @@ const (
 	maxTimeout     = Duration(24 * time.Hour)
 	maxCacheMaxAge = Duration(365 * 24 * time.Hour)
 	minMaxPixels   = 32 * 32
-	maxMaxPixels   = 1 << 32
+	maxMaxPixels   = 1 << 30 // figure.MaxSide²
 )
 
 // Sentinel errors returned by Load. A decode error from go-toml carries the
@@ -108,7 +108,7 @@ func Default() *Config {
 			Debug:             false,
 			ReadTimeout:       Duration(10 * time.Second),
 			ReadHeaderTimeout: Duration(5 * time.Second),
-			WriteTimeout:      Duration(60 * time.Second),
+			WriteTimeout:      Duration(30 * time.Second),
 			IdleTimeout:       Duration(60 * time.Second),
 			ShutdownTimeout:   Duration(10 * time.Second),
 			CacheMaxAge:       Duration(time.Hour),
@@ -118,7 +118,7 @@ func Default() *Config {
 			MaxConcurrent: 2,
 			MaxQueued:     8,
 			QueueTimeout:  Duration(2 * time.Second),
-			Timeout:       Duration(30 * time.Second),
+			Timeout:       Duration(15 * time.Second),
 			Workers:       0,
 			MaxIterations: 4096,
 			MaxDepth:      8,

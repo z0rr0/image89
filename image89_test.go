@@ -182,7 +182,7 @@ func TestParseFlagsUsage(t *testing.T) {
 		t.Fatalf("parseFlags(-help) error = %v, want flag.ErrHelp", err)
 	}
 	usage := stderr.String()
-	for _, want := range []string{"-help", "-h int", "image height", "-w int", "-t string", "-c string", "-s", "-v", "min 32, max 65536"} {
+	for _, want := range []string{"-help", "-h int", "image height", "-w int", "-t string", "-c string", "-s", "-v", "min 32, max 32768"} {
 		if !strings.Contains(usage, want) {
 			t.Errorf("usage does not contain %q:\n%s", want, usage)
 		}

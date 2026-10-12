@@ -4,10 +4,19 @@
 ![Version](https://img.shields.io/github/tag/z0rr0/image89.svg)
 ![License](https://img.shields.io/github/license/z0rr0/image89.svg)
 
-It is a web application and CLI tool to generate math images.
+Image89 draws six mathematical figures of any size from 32 to 32768 pixels per side: the Mandelbrot and
+Julia sets, the Newton fractal, the Sierpiński triangle, the Koch snowflake and a Lissajous curve. One binary
+works as a CLI tool that writes an image file and as a web server that serves the images, with a page
+about the history and the math of every figure.
 
-> **In development.** The CLI and the HTTP server generate all six figures, and each of them has an info
-> page; benchmarks and the final tuning of the limits are still to come.
+## Quick start
+
+```sh
+make build
+./image89 -t julia -w 1920 -h 1080 -o julia      # writes julia.png
+./image89 -s                                     # open http://localhost:8080/
+docker run --rm -p 8080:8080 z0rr0/image89      # the server in Docker
+```
 
 ## Usage
 
@@ -23,8 +32,8 @@ It is a web application and CLI tool to generate math images.
 
 | Flag | Description |
 |---|---|
-| `-w` | image width (default 1024, min 32, max 65536) |
-| `-h` | image height (default 1024, min 32, max 65536) |
+| `-w` | image width (default 1024, min 32, max 32768) |
+| `-h` | image height (default 1024, min 32, max 32768) |
 | `-t` | image type: `mandelbrot` (default), `julia`, `newton`, `sierpinski`, `koch`, `lissajous` |
 | `-o` | output file (default `output.<ext>`); an existing file is never overwritten |
 | `-f` | output format: `png` (default) or `jpeg` |
@@ -43,7 +52,7 @@ of a created image (path, size, bytes, duration) goes to stderr; the exit code i
 1 on an error and 2 on invalid flags.
 
 The CLI obeys the same `[limits]` as the server: with the defaults an image has at most
-16 777 216 pixels (`-w 8192 -h 8192` is rejected) and must be generated and encoded within 30s.
+16 777 216 pixels (`-w 8192 -h 8192` is rejected) and must be generated and encoded within 15s.
 Raise `limits.max_pixels` and `limits.timeout` in a config passed with `-c` for larger images;
 the config check still requires `server.write_timeout` to exceed `limits.queue_timeout + limits.timeout`:
 
@@ -81,7 +90,7 @@ is redirected with `307` to the path with the slash, keeping the query.
 |---|---|
 | `200` | image (`image/png` or `image/jpeg` with `Content-Length`) or page (`text/html; charset=utf-8`) |
 | `307` | the path has no trailing slash |
-| `400` | invalid size (`640X480`, a side outside 32–65536), unknown format, more than `limits.max_pixels` pixels, a JPEG side over 65535 |
+| `400` | invalid size (`640X480`, a side outside 32–32768), unknown format, more than `limits.max_pixels` pixels |
 | `404` | unknown type, unknown path |
 | `405` | a method other than `GET` and `HEAD` |
 | `503` + `Retry-After: 1` | all `limits.max_concurrent` slots are busy and the queue is full or `limits.queue_timeout` passed |
@@ -106,21 +115,24 @@ are closed. Image flags (`-w -h -t -o -f`) are ignored with `-s`, and a warning 
 Generation is CPU-bound, so the server limits it itself: at most `limits.max_concurrent` images are
 generated and sent at once, at most `limits.max_queued` requests wait for a slot. A rate limit in a
 reverse proxy is a useful addition, but it bounds requests per second, not concurrent work, so it does
-not replace these limits. An nginx example:
+not replace these limits.
 
-```nginx
-limit_conn_zone $binary_remote_addr zone=image89_conn:10m;
-limit_req_zone  $binary_remote_addr zone=image89_req:10m rate=5r/s;
+**Run the server behind a reverse proxy that buffers responses.** A slot is held until the whole image
+is sent, so a client that reads slowly holds a slot until `server.write_timeout` (30s) cuts its response:
+two clients reading 4096×4096 images at 128 KiB/s make every other request get `503` for 30 seconds
+with the default two slots. nginx buffers proxied responses by default (`proxy_buffering on`): it takes
+the image at once, frees the slot and sends the image to the slow client by itself. Keep the buffering
+on.
 
-server {
-    location / {
-        limit_conn image89_conn 4;
-        limit_req  zone=image89_req burst=20 nodelay;
-        proxy_set_header X-Request-ID $request_id;
-        proxy_pass http://127.0.0.1:8080;
-    }
-}
-```
+[docs/nginx.conf](docs/nginx.conf) is a complete example for `/etc/nginx/conf.d/`, checked with nginx 1.31:
+
+- TLS and a redirect from HTTP;
+- buffering of responses, so slow clients do not hold generation slots;
+- a shared cache of the images: Image89 sends them with `Cache-Control`, so nginx keeps them for
+  `server.cache_max_age`, and `proxy_cache_lock` lets concurrent requests of one image wait for a single
+  generation (8 requests of a new 4096×4096 image made one); pages and errors are not cached;
+- 5 requests per second with a burst of 20 and 8 concurrent requests per client address, `429` above them;
+- timeouts that match the defaults of Image89 and its request ID in `X-Request-ID`.
 
 ## Figures
 
@@ -158,18 +170,26 @@ every value equals the default.
 Durations are Go duration strings such as `"10s"`. `server.read_header_timeout` must not exceed
 `server.read_timeout`, and `server.write_timeout` must exceed `limits.queue_timeout + limits.timeout`.
 
-A generation slot is held until the response is written, so the peak memory for images is about
+A generation slot is held until the response is written, so the peak heap for images is about
 
 ```text
-max_concurrent × (4 · max_pixels + 32 MiB + encoded image size)
+max_concurrent × (4 · max_pixels + 32 MiB + polygons + 2 × encoded image size)
 ```
 
-where `4 · max_pixels` is the RGBA buffer and 32 MiB caps the rasterizer scratch memory.
-With the defaults (`max_concurrent = 2`, `max_pixels = 16777216`) that is about 2 × (64 + 32) MiB
-plus the encoded images. The polygons of a contour figure come on top: a few MiB with the default
-presets, up to about 30 MiB for a Koch snowflake of depth 7 at 4096×4096.
+where `4 · max_pixels` is the RGBA buffer, 32 MiB caps the rasterizer masks of a contour figure, the
+polygons take a few MiB with the default presets (up to 17 MiB at 4096×4096 with depth 8) and the
+encoded image grows its buffer by doubling (a 4096×4096 PNG takes up to 6.4 MB). With the defaults
+(`max_concurrent = 2`, `max_pixels = 16777216`) that is about 2 × 125 MiB. The process takes up to about
+twice the peak heap, because the Go GC lets the heap grow by `GOGC=100` between collections: 0.42–0.51 GB
+were measured under load. Set the `GOMEMLIMIT` environment variable near the formula, e.g.
+`GOMEMLIMIT=300MiB`, to make the GC collect earlier: that gave 0.34 GB at the same throughput.
 
-## Build
+PNG and JPEG encoding runs in one goroutine and takes half or more of a request, so slots add throughput
+even though every image uses all cores (`limits.workers = 0`). On 8 cores `max_concurrent = 4` serves 44%
+more 1024×1024 images per second than 2 and takes up to about 0.75 GB at `max_pixels`; on fewer cores two
+slots are enough. [docs/benchmarks.md](docs/benchmarks.md) has the measurements behind the defaults.
+
+## Development
 
 Requires Go 1.27 and [golangci-lint](https://golangci-lint.run/) v2. Besides the standard library the
 code uses [go-toml](https://github.com/pelletier/go-toml) for the config and
@@ -178,10 +198,18 @@ code uses [go-toml](https://github.com/pelletier/go-toml) for the config and
 ```sh
 make build   # ./image89 with version info from git
 make test    # linters, govulncheck and tests with -race
+make bench   # benchmarks; BENCH=<regexp> selects them, BENCHFLAGS adds flags such as -count=10
+make fuzz    # fuzzing of the parsers of client input, FUZZTIME (30s) per target
 make dist    # cross-compiled binaries in dist/
 make run     # build and start the server
 make clean
+go run ./cmd/loadtest -c 4 -n 20 -path /mandelbrot/   # load a running server, -help lists the flags
 ```
+
+`make test` runs the seed corpus of the fuzz targets as ordinary tests. A failing input found by
+`make fuzz` is saved in `testdata/fuzz/<target>/` and is committed with the fix as a regression test.
+[docs/benchmarks.md](docs/benchmarks.md) has the measurements behind the default limits and the internal
+constants, and the commands to repeat them.
 
 ## Docker
 

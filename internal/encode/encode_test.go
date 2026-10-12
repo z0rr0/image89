@@ -10,6 +10,8 @@ import (
 	"io"
 	"math/rand/v2"
 	"testing"
+
+	"github.com/z0rr0/image89/internal/figure"
 )
 
 var errBoom = errors.New("boom")
@@ -147,10 +149,9 @@ func TestFormatMetadata(t *testing.T) {
 		format      Format
 		contentType string
 		ext         string
-		maxSide     int
 	}{
-		{format: PNG, contentType: "image/png", ext: ".png", maxSide: 65536},
-		{format: JPEG, contentType: "image/jpeg", ext: ".jpg", maxSide: 65535},
+		{format: PNG, contentType: "image/png", ext: ".png"},
+		{format: JPEG, contentType: "image/jpeg", ext: ".jpg"},
 		{format: "gif"},
 		{format: ""},
 	}
@@ -161,9 +162,6 @@ func TestFormatMetadata(t *testing.T) {
 		}
 		if got := tt.format.Ext(); got != tt.ext {
 			t.Errorf("%q.Ext() = %q, want %q", tt.format, got, tt.ext)
-		}
-		if got := tt.format.MaxSide(); got != tt.maxSide {
-			t.Errorf("%q.MaxSide() = %d, want %d", tt.format, got, tt.maxSide)
 		}
 	}
 }
@@ -234,42 +232,43 @@ func absDiff(a, b int) int {
 	return b - a
 }
 
+// TestEncodeMaxSide checks that both formats encode the largest side of an
+// image, so Validate needs no check per format. image/jpeg refuses a side of
+// 1<<16 or more: figure.MaxSide must stay below it.
 func TestEncodeMaxSide(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		format  Format
-		width   int
-		wantErr bool
+		name          string
+		format        Format
+		width, height int
+		wantErr       bool
 	}{
-		{name: "png 65536", format: PNG, width: 65536},
-		{name: "jpeg 65535", format: JPEG, width: 65535},
-		{name: "jpeg 65536", format: JPEG, width: 65536, wantErr: true},
+		{name: "png wide", format: PNG, width: figure.MaxSide, height: 1},
+		{name: "png tall", format: PNG, width: 1, height: figure.MaxSide},
+		{name: "jpeg wide", format: JPEG, width: figure.MaxSide, height: 1},
+		{name: "jpeg tall", format: JPEG, width: 1, height: figure.MaxSide},
+		{name: "jpeg limit", format: JPEG, width: 1 << 16, height: 1, wantErr: true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tt.width > tt.format.MaxSide() != tt.wantErr {
-				t.Fatalf("width %d vs %q.MaxSide() = %d disagrees with wantErr %v",
-					tt.width, tt.format, tt.format.MaxSide(), tt.wantErr)
-			}
-			img := image.NewRGBA(image.Rect(0, 0, tt.width, 1))
+			img := image.NewRGBA(image.Rect(0, 0, tt.width, tt.height))
 			var w countWriter
 			err := Encode(t.Context(), &w, img, tt.format)
 			if tt.wantErr {
 				if err == nil {
-					t.Fatalf("Encode(%q, %dx1) error = nil, want an error", tt.format, tt.width)
+					t.Fatalf("Encode(%q, %dx%d) error = nil, want an error", tt.format, tt.width, tt.height)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("Encode(%q, %dx1) unexpected error: %v", tt.format, tt.width, err)
+				t.Fatalf("Encode(%q, %dx%d) unexpected error: %v", tt.format, tt.width, tt.height, err)
 			}
 			if w.n == 0 {
-				t.Errorf("Encode(%q, %dx1) wrote nothing", tt.format, tt.width)
+				t.Errorf("Encode(%q, %dx%d) wrote nothing", tt.format, tt.width, tt.height)
 			}
 		})
 	}

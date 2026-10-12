@@ -13,7 +13,7 @@ import (
 // Image side limits and the defaults used when a request gives no size or kind.
 const (
 	MinSide     = 32
-	MaxSide     = 65536
+	MaxSide     = 32768
 	DefaultSide = 1024
 	DefaultKind = Mandelbrot
 )

@@ -64,27 +64,12 @@ func (f Format) Ext() string {
 	}
 }
 
-// MaxSide returns the largest image side the format can encode, or 0 for an
-// unknown format. PNG has no practical limit, so it uses the product limit
-// (figure.MaxSide); image/jpeg refuses a side of 1<<16 or more.
-func (f Format) MaxSide() int {
-	switch f {
-	case PNG:
-		return 1 << 16
-	case JPEG:
-		return 1<<16 - 1
-	default:
-		return 0
-	}
-}
-
 // Encode writes img to w in the format f. Nothing is written if ctx is already
 // done or f is unknown. Every write to w is preceded by a ctx check, so a
 // canceled ctx stops the output at the next write, and ctx.Err() takes priority
 // over the encoder error. PNG writes about every 32 KiB of compressed data and
 // stops encoding at the first failed write; JPEG writes every 4 KiB but keeps
 // encoding the rest of the image without writing it.
-// Encode does not check the image size against MaxSide.
 func Encode(ctx context.Context, w io.Writer, img image.Image, f Format) error {
 	if err := ctx.Err(); err != nil {
 		return err

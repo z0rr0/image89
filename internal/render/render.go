@@ -24,8 +24,6 @@ import (
 var (
 	// ErrTooManyPixels means width × height exceeds limits.max_pixels.
 	ErrTooManyPixels = errors.New("too many pixels")
-	// ErrSideTooLarge means an image side exceeds the largest side of the format.
-	ErrSideTooLarge = errors.New("image side is too large for the format")
 	// ErrQueueFull means limits.max_queued requests already wait for a slot.
 	ErrQueueFull = errors.New("render queue is full")
 	// ErrBusy means no slot became free in time; it is joined with the error
@@ -103,9 +101,10 @@ func (r *Renderer) Kinds() []figure.Kind {
 
 // Validate checks req without allocating the image: the format is known
 // (encode.ErrUnknownFormat), the kind has a generator (figure.ErrUnknownKind),
-// the sides are in range (figure.ErrInvalidSize), the image has at most
-// limits.max_pixels pixels (ErrTooManyPixels) and the format can encode its
-// sides (ErrSideTooLarge). The first failed check is returned.
+// the sides are in range (figure.ErrInvalidSize) and the image has at most
+// limits.max_pixels pixels (ErrTooManyPixels). The first failed check is
+// returned. Every format encodes any side up to figure.MaxSide, so the sides
+// are not checked against the format.
 func (r *Renderer) Validate(req Request) error {
 	if req.Format.ContentType() == "" {
 		return errors.Join(encode.ErrUnknownFormat, fmt.Errorf("%q", req.Format))
@@ -118,9 +117,6 @@ func (r *Renderer) Validate(req Request) error {
 	}
 	if pixels := req.Size.Pixels(); pixels > r.maxPixels {
 		return errors.Join(ErrTooManyPixels, fmt.Errorf("%s has %d pixels, limit %d", req.Size, pixels, r.maxPixels))
-	}
-	if side, limit := max(req.Size.Width, req.Size.Height), req.Format.MaxSide(); side > limit {
-		return errors.Join(ErrSideTooLarge, fmt.Errorf("%s: %s sides are limited to %d", req.Size, req.Format, limit))
 	}
 	return nil
 }

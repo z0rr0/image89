@@ -83,8 +83,8 @@ func TestLissajousCount(t *testing.T) {
 	}{
 		{name: "small", a: 3, b: 2, size: figure.Size{Width: 32, Height: 32}, want: minLissajousPoints},
 		{name: "1024", a: 3, b: 2, size: figure.Size{Width: 1024, Height: 1024}, want: 4826},
-		{name: "min side", a: 1, b: 32, size: figure.Size{Width: 65536, Height: 32}, want: 1609},
-		{name: "large", a: 32, b: 1, size: figure.Size{Width: 65536, Height: 65536}, want: maxLissajousPoints},
+		{name: "min side", a: 1, b: 32, size: figure.Size{Width: figure.MaxSide, Height: 32}, want: 1609},
+		{name: "large", a: 32, b: 1, size: figure.Size{Width: figure.MaxSide, Height: figure.MaxSide}, want: maxLissajousPoints},
 		{name: "preset", points: 500, a: 3, b: 2, size: figure.Size{Width: 1024, Height: 1024}, want: 500},
 	}
 	for _, tt := range tests {

@@ -27,12 +27,11 @@ type segment struct {
 
 // newSegment returns the segment from a to b, which must differ, for the half width r.
 func newSegment(a, b Point, r float64) segment {
-	dx, dy := b.X-a.X, b.Y-a.Y
-	l := math.Hypot(dx, dy)
-	ux, uy := dx/l, dy/l
+	dir := direction(a, b)
+	ux, uy := dir.X, dir.Y
 	nx, ny := -uy*r, ux*r
 	return segment{
-		dir: Point{X: ux, Y: uy},
+		dir: dir,
 		la:  Point{X: a.X + nx, Y: a.Y + ny},
 		lb:  Point{X: b.X + nx, Y: b.Y + ny},
 		ra:  Point{X: a.X - nx, Y: a.Y - ny},
@@ -71,8 +70,8 @@ func Stroke(ctx context.Context, pl Polyline, width float64) ([]Polygon, error) 
 	if pl.Closed {
 		segs = n
 	}
-	// A rectangle has 6 points and a join usually 3.
-	set := polygonSet{points: make([]Point, 0, 9*segs+16), ends: make([]int, 0, 2*segs+2)}
+	phi := chordAngle(r)
+	set := polygonSet{points: make([]Point, 0, strokePoints(pts, segs, pl.Closed, phi)), ends: make([]int, 0, 2*segs+2)}
 
 	first := newSegment(pts[0], pts[1], r)
 	prev := first
@@ -86,7 +85,7 @@ func Stroke(ctx context.Context, pl Polyline, width float64) ([]Polygon, error) 
 		cur := first
 		if i > 0 {
 			cur = newSegment(a, b, r)
-			set.join(a, prev, cur, r)
+			set.join(a, prev, cur, phi)
 		}
 		// The centers of the ends are vertices too, so every half of an end
 		// edge matches an edge of a join or a cap point for point.
@@ -95,37 +94,75 @@ func Stroke(ctx context.Context, pl Polyline, width float64) ([]Polygon, error) 
 	}
 
 	if pl.Closed {
-		set.join(pts[0], prev, first, r)
+		set.join(pts[0], prev, first, phi)
 	} else {
-		set.arc(pts[0], first.la, first.ra, math.Pi, r)
-		set.arc(pts[n-1], prev.rb, prev.lb, math.Pi, r)
+		set.arc(pts[0], first.la, first.ra, math.Pi, phi)
+		set.arc(pts[n-1], prev.rb, prev.lb, math.Pi, phi)
 	}
 	return set.polygons(), nil
 }
 
+// direction returns the unit vector from a to b, which must differ.
+func direction(a, b Point) Point {
+	dx, dy := b.X-a.X, b.Y-a.Y
+	l := math.Hypot(dx, dy)
+	return Point{X: dx / l, Y: dy / l}
+}
+
+// turn returns the signed angle from the direction d1 to d2.
+func turn(d1, d2 Point) float64 {
+	return math.Atan2(d1.X*d2.Y-d1.Y*d2.X, d1.X*d2.X+d1.Y*d2.Y)
+}
+
+// strokePoints returns how many points Stroke adds at most for the segs
+// segments of pts with chords of at most the angle phi: 6 for every rectangle
+// and k + 2 for every join or cap of k chords. The polygons that closePolygon drops make
+// the actual number smaller. One pass over the turns costs less than growing
+// the points by append, which copies them and keeps the old arrays until
+// the next GC.
+func strokePoints(pts []Point, segs int, closed bool, phi float64) int {
+	arc := func(theta float64) int {
+		if theta == 0 {
+			return 0
+		}
+		return chords(phi, math.Abs(theta)) + 2
+	}
+	n := len(pts)
+	total := 6 * segs
+	prev := direction(pts[0], pts[1])
+	first := prev
+	for i := 1; i < segs; i++ {
+		cur := direction(pts[i], pts[(i+1)%n])
+		total += arc(turn(prev, cur))
+		prev = cur
+	}
+	if closed {
+		return total + arc(turn(prev, first))
+	}
+	return total + 2*arc(math.Pi)
+}
+
 // join adds the join at the vertex v from the segment s1 to s2: a bevel or a
-// round sector on the outer side of the turn.
-func (s *polygonSet) join(v Point, s1, s2 segment, r float64) {
-	cross := s1.dir.X*s2.dir.Y - s1.dir.Y*s2.dir.X
-	dot := s1.dir.X*s2.dir.X + s1.dir.Y*s2.dir.Y
-	theta := math.Atan2(cross, dot)
+// round sector of chords of at most the angle phi on the outer side of the turn.
+func (s *polygonSet) join(v Point, s1, s2 segment, phi float64) {
+	theta := turn(s1.dir, s2.dir)
 	if theta == 0 {
 		return
 	}
 	// A turn towards the left side (theta > 0) has its outer side on the right.
 	if theta > 0 {
-		s.arc(v, s1.rb, s2.ra, theta, r)
+		s.arc(v, s1.rb, s2.ra, theta, phi)
 	} else {
-		s.arc(v, s1.lb, s2.la, theta, r)
+		s.arc(v, s1.lb, s2.la, theta, phi)
 	}
 }
 
-// arc adds the sector of the circle of radius r around c that starts at the
-// point from and turns by theta to the point to. from and to lie on the circle
-// and are used as given; the points between them are rotations of from. One
-// chord gives a triangle, which is the bevel join.
-func (s *polygonSet) arc(c, from, to Point, theta, r float64) {
-	k := chords(r, math.Abs(theta))
+// arc adds the sector of a circle around c that starts at the point from and
+// turns by theta to the point to, in chords of at most the angle phi. from
+// and to lie on the circle and are used as given; the points between them are
+// rotations of from. One chord gives a triangle, which is the bevel join.
+func (s *polygonSet) arc(c, from, to Point, theta, phi float64) {
+	k := chords(phi, math.Abs(theta))
 	start := len(s.points)
 	s.points = append(s.points, c, from)
 	fx, fy := from.X-c.X, from.Y-c.Y
@@ -137,17 +174,24 @@ func (s *polygonSet) arc(c, from, to Point, theta, r float64) {
 	s.closePolygon(start)
 }
 
-// chords returns the number of equal chords that approximate an arc of radius
-// r and angle theta with a gap of at most maxSagitta pixels, but not more than
-// maxChords. A chord of angle φ is r·(1 − cos(φ/2)) = 2r·sin²(φ/4) away from the
-// arc, so φ = 4·asin(√(maxSagitta / 2r)); this form keeps φ positive for a large r.
-func chords(r, theta float64) int {
+// chordAngle returns the largest angle of a chord of a circle of radius r
+// that leaves a gap of at most maxSagitta pixels to the arc. A chord of angle
+// φ is r·(1 − cos(φ/2)) = 2r·sin²(φ/4) away from the arc, so
+// φ = 4·asin(√(maxSagitta / 2r)); this form keeps φ positive for a large r.
+// A small circle gives +Inf: even its half is within maxSagitta of the diameter.
+func chordAngle(r float64) float64 {
 	q := maxSagitta / (2 * r)
 	if q >= 1 {
-		// Even a half circle is within maxSagitta of its diameter.
-		return 1
+		return math.Inf(1)
 	}
-	k := math.Ceil(theta / (4 * math.Asin(math.Sqrt(q))))
+	return 4 * math.Asin(math.Sqrt(q))
+}
+
+// chords returns the number of equal chords of at most the angle phi (see
+// chordAngle) that approximate an arc of the angle theta: at least 1 and at
+// most maxChords.
+func chords(phi, theta float64) int {
+	k := math.Ceil(theta / phi)
 	if !(k < maxChords) {
 		return maxChords
 	}

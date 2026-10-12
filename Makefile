@@ -10,8 +10,13 @@ PLATFORMS=darwin/arm64 linux/amd64
 IMAGE=z0rr0/image89
 BUILDER=image89-multiarch
 DOCKER_PLATFORMS=linux/amd64,linux/arm64
+# make bench BENCH=Generate BENCHFLAGS='-count=10 -benchtime=3x'
+BENCH ?= .
+BENCHFLAGS ?=
+# make fuzz FUZZTIME=5m
+FUZZTIME ?= 30s
 
-.PHONY: all fmt lint vuln test build dist run docker docker-push clean
+.PHONY: all fmt lint vuln test bench fuzz build dist run docker docker-push clean
 
 all: build
 
@@ -30,6 +35,18 @@ vuln:
 
 test: lint
 	go test -race -cover ./...
+
+# Benchmarks only, without -race; docs/benchmarks.md has the results.
+bench:
+	go test -run '^$$' -bench '$(BENCH)' -benchmem $(BENCHFLAGS) ./internal/...
+
+# Fuzzing of the parsers of client input, FUZZTIME per target: go test -fuzz
+# takes one target at a time. `make test` runs only the seed corpus. A failing
+# input is saved in testdata/fuzz/<target>/ and must be committed with the fix.
+fuzz:
+	go test -run '^$$' -fuzz '^FuzzParseSize$$' -fuzztime $(FUZZTIME) ./internal/figure
+	go test -run '^$$' -fuzz '^FuzzSanitizeRequestID$$' -fuzztime $(FUZZTIME) ./internal/server
+	go test -run '^$$' -fuzz '^FuzzImageRoute$$' -fuzztime $(FUZZTIME) ./internal/server
 
 build:
 	go build -ldflags "$(GO_LDFLAGS)" -o $(NAME) .

@@ -17,13 +17,16 @@ This document provides information for AI agents working on the **Image89** code
 ├── internal/figure/     # Kind, Kinds(), ParseKind, Size, ParseSize, side limits, ForRows row scheduler
 │   ├── fractal/         # Mandelbrot, Julia, Newton: viewport, palette, iterations, shared pixel loop (plane)
 │   └── geometry/        # Sierpinski, Koch, Lissajous: Fit, Stroke into polygons, banded Fill with x/image/vector
-├── internal/encode/     # Format, Parse, ContentType/Ext/MaxSide, ctx-aware Encode to PNG or JPEG
+├── internal/encode/     # Format, Parse, ContentType/Ext, ctx-aware Encode to PNG or JPEG
 ├── internal/render/     # Generator, Request, Renderer: registry, Validate, slots with a bounded queue, timeout
 ├── internal/cli/        # CLI mode: OutputName, Run into a new file (O_EXCL), removes the file on any error
 ├── internal/server/     # HTTP: routes, image handler, error statuses, middleware, Serve/Shutdown with fallback
 ├── internal/pages/      # embedded html/template pages (base, index, info/<kind>.html), rendered once by New
+├── cmd/loadtest/        # HTTP load generator (stdlib): concurrent clients, slow reading, latency per status
 ├── docs/config.toml     # annotated config, every value equals config.Default()
-├── Makefile             # build, test, lint, dist, docker targets
+├── docs/benchmarks.md   # measurements behind the defaults and internal constants, how to repeat them
+├── docs/nginx.conf      # production nginx example: TLS, buffering, image cache with lock, limits per address
+├── Makefile             # build, test, bench, lint, dist, docker targets
 ├── Dockerfile           # multi-stage image z0rr0/image89
 ├── docker-compose.yml   # service with /health healthcheck
 ├── .github/workflows/   # CI: build, vet, test, golangci-lint, govulncheck
@@ -45,7 +48,9 @@ Build and test commands:
 - `go test -race -cover ./...`
 - `go test -v -race ./internal/config` - Run tests for specific package
 - `go test -v -run TestValidate ./internal/config` - Run specific test
-- `go test -bench . -benchmem -run '^$' ./internal/...` - Run benchmarks
+- `make bench` - Run benchmarks of `./internal/...` without tests; `BENCH=<regexp>` selects them, `BENCHFLAGS`
+  adds flags (`BENCHFLAGS='-count=10 -benchtime=3x'`); compare runs with `go run golang.org/x/perf/cmd/benchstat@latest`
+- `go run ./cmd/loadtest -c 4 -n 20 -path /mandelbrot/` - Load a running server (`-help` lists the flags)
 
 Gotchas:
 
@@ -69,7 +74,10 @@ Gotchas:
   returned as an error.
 - `encode.Encode` checks `ctx` before every write to the output, so cancellation granularity is output bytes, not
   rows: PNG writes about every 32 KiB of compressed data and stops at the first failed write; JPEG writes every
-  4 KiB and keeps encoding the whole image after a failed write. `Encode` does not check sides against `MaxSide`.
+  4 KiB and keeps encoding the whole image after a failed write.
+- `figure.MaxSide` (32768) is the only side limit: every format encodes it, so `render.Validate` has no check per
+  format. `image/jpeg` refuses a side of `1<<16` or more; `TestEncodeMaxSide` fails if `MaxSide` reaches it.
+  `limits.max_pixels` is at most `MaxSide²` (`1 << 30`).
 - `png.Decode` returns `*image.RGBA` only for opaque truecolor images; tests that compare `Pix` use opaque images.
 - gosec G115 reports `int` to `uint8` conversions; mask a value already in range with `& 0xff`.
 - `go test -race -cover` makes every basic block update an atomic coverage counter through the race runtime, and
@@ -81,6 +89,10 @@ Gotchas:
 - Pixel fractals share one unexported loop, `plane` in `plane.go`: a pixel function returns the color and the
   iterations spent (the ctx check budget). `escapeTime` in `escape.go` builds it for Mandelbrot and Julia from
   an escape function and the smooth coloring; `dupl` is on, so new pixel fractals reuse `plane`.
+- The Mandelbrot escape function skips the main cardioid and the disk of period 2 (`inMainBulbs`) and returns
+  `maxIter` for them; `escapeMandelbrot` itself still iterates. Skipped pixels count `maxIter` towards the ctx
+  budget, so checks only come more often. `TestMandelbrotBulbsSameImage` compares the image byte for byte with
+  the plain escape function; keep that when touching the check.
 - Newton convention (`newtonRoot`): `|zⁿ − 1|² < eps²` is checked before every step, so a point at a root takes
   0 steps; a step with `|Δz|² < eps²` also converges and is counted; `|zⁿ⁻¹|² < newtonMinDeriv2` or `maxIter`
   steps give `k = −1` (background). The root index is the nearest root by angle. Color: a gradient from
@@ -124,6 +136,9 @@ Gotchas:
   `Stroke` computes the shifted ends of a segment once and reuses them in the rectangle (6 points, the ends
   of the center line are vertices too), the joins and the caps. Joins and caps are `arc` sectors, a bevel is
   an arc of one chord; the inner side of a turn is left to the overlapping rectangles.
+- `Stroke` sizes its points exactly: `strokePoints` walks the turns once and counts 6 points per rectangle and
+  `chords + 2` per join or cap, with the chord angle (`chordAngle`) computed once per line. A change of `join`,
+  `arc` or the rectangle must change `strokePoints` too; `TestStrokePoints` fails when the count is short.
 - `Fill` rasterizes bands of rows, one mask per worker. `Draw` indexes the mask from `r.Min` and needs `r` of
   exactly the mask size (the full image with the band rectangle, no `SubImage`); `Draw` consumes the mask, so
   `Reset` comes before every band. Masks are fixed point (4 B/px) up to 512 px per side, float (8 B/px)
@@ -131,11 +146,28 @@ Gotchas:
   number of workers, but bands of another height change anti-aliased pixels by ±1: the accumulator carries
   the rounding residue of a row into the next one until the end of the mask. Tests compare the painted area
   per row, not bytes. `fill(…, rows, scratch)` takes the band height and the scratch cap for tests and
-  returns the number of rasterizers it created.
+  returns the number of rasterizers it created. `bandPixels = 1<<19` keeps 8 rasterizers within `scratchCap`
+  at any width (`docs/benchmarks.md`); changing it changes anti-aliased pixels of images wider than 4096.
 - The center of a Sierpinski image lies on the top side of the removed middle triangle, an anti-aliased edge;
   tests check the centroid `(1/2, √3/6)`, which is inside the removed triangle at every depth from 1 on.
 - Geometry tests are parallel: their hot loops run inside `x/image/vector`, which `-cover` does not
   instrument, so the package takes about 2 s under `-race -cover`.
+- Do not add `png.Encoder.BufferPool`: `png.EncoderBuffer` keeps the last image and writer it encoded, so a
+  pool pins RGBA images of up to 64 MiB until two GC cycles pass. Measured in `docs/benchmarks.md`.
+- Benchmarks: `make bench` (`BENCH`, `BENCHFLAGS`), compared with benchstat. Runs at different times differ by
+  up to 10% on a laptop, so a decision compares variants inside one run. Sub-benchmark names are not
+  `key=value`; rename them with `sed` before `benchstat -col`. `BenchmarkCancel` needs `-benchtime=3x`.
+- Fuzz targets: `FuzzParseSize` (`figure`), `FuzzSanitizeRequestID` and `FuzzImageRoute` (`server`). `make test`
+  runs their seeds; `make fuzz` fuzzes each for `FUZZTIME`. A failing input lands in `testdata/fuzz/<target>/`
+  and is committed with the fix. Set headers with `Header.Set`: a raw map key `X-Request-ID` is not canonical,
+  and `Header.Get` does not see it. Fuzz targets replace the default logger, so they must not call `t.Parallel`.
+- A slot is held until the response is written, so a slow client holds it until `server.write_timeout` (30s);
+  the server must run behind a proxy that buffers responses (nginx `proxy_buffering on`). `cmd/loadtest -rate`
+  reproduces it. The process RSS is up to twice the peak heap (`GOGC`); `GOMEMLIMIT` lowers it.
+- `docs/nginx.conf` follows the config defaults: `proxy_read_timeout` above `queue_timeout + timeout` and at most
+  `write_timeout`, `proxy_cache_lock_timeout` about one generation, upstream `keepalive_timeout` below
+  `server.idle_timeout`. nginx caches only responses with `Cache-Control`, i.e. images; keep pages and errors
+  without it. Change the file with those values and check it with `nginx -t` (e.g. in `nginx:alpine`).
 
 ## Code Style Conventions
 

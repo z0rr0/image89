@@ -112,8 +112,8 @@ func TestValidate(t *testing.T) {
 	}{
 		{name: "png", req: Request{Kind: figure.Mandelbrot, Size: size(64, 48), Format: encode.PNG}},
 		{name: "jpeg", req: Request{Kind: figure.Julia, Size: size(64, 48), Format: encode.JPEG}},
-		{name: "png max side", req: Request{Kind: figure.Mandelbrot, Size: size(65536, 32), Format: encode.PNG}},
-		{name: "jpeg max side", req: Request{Kind: figure.Mandelbrot, Size: size(65535, 32), Format: encode.JPEG}},
+		{name: "png max side", req: Request{Kind: figure.Mandelbrot, Size: size(32768, 32), Format: encode.PNG}},
+		{name: "jpeg max side", req: Request{Kind: figure.Mandelbrot, Size: size(32, 32768), Format: encode.JPEG}},
 		{
 			name: "unknown format", req: Request{Kind: figure.Mandelbrot, Size: size(64, 48), Format: "gif"},
 			want: encode.ErrUnknownFormat,
@@ -139,20 +139,12 @@ func TestValidate(t *testing.T) {
 			want: figure.ErrInvalidSize,
 		},
 		{
-			name: "side above max", req: Request{Kind: figure.Mandelbrot, Size: size(65537, 32), Format: encode.PNG},
+			name: "side above max", req: Request{Kind: figure.Mandelbrot, Size: size(32769, 32), Format: encode.PNG},
 			want: figure.ErrInvalidSize,
 		},
 		{
 			name: "too many pixels", req: Request{Kind: figure.Mandelbrot, Size: size(2048, 1025), Format: encode.PNG},
 			want: ErrTooManyPixels,
-		},
-		{
-			name: "pixels before side", req: Request{Kind: figure.Mandelbrot, Size: size(65536, 64), Format: encode.JPEG},
-			want: ErrTooManyPixels, notWant: ErrSideTooLarge,
-		},
-		{
-			name: "jpeg side", req: Request{Kind: figure.Mandelbrot, Size: size(65536, 32), Format: encode.JPEG},
-			want: ErrSideTooLarge,
 		},
 	}
 
@@ -508,17 +500,6 @@ func TestNewRendersAllKinds(t *testing.T) {
 					t.Errorf("bounds = %v, want %v", img.Bounds(), want)
 				}
 			})
-		}
-	}
-}
-
-func BenchmarkRender(b *testing.B) {
-	r := New(config.Default())
-	req := Request{Kind: figure.Mandelbrot, Size: figure.Size{Width: 640, Height: 480}, Format: encode.PNG}
-	b.ReportAllocs()
-	for b.Loop() {
-		if err := r.Render(b.Context(), req, discard); err != nil {
-			b.Fatal(err)
 		}
 	}
 }

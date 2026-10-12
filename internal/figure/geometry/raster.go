@@ -13,10 +13,12 @@ import (
 	"github.com/z0rr0/image89/internal/figure"
 )
 
-// Band rasterization limits; T17 calibrates them by measurements.
+// Band rasterization limits, chosen by measurements (docs/benchmarks.md).
 const (
-	// bandPixels bounds the pixels of one band.
-	bandPixels = 1 << 20
+	// bandPixels bounds the pixels of one band. Images wider than
+	// bandPixels/maxBandRows get lower bands, so scratchCap holds the masks of
+	// at least scratchCap/(maskBytes·bandPixels) = 8 rasterizers at any width.
+	bandPixels = 1 << 19
 	// maxBandRows bounds the height of one band.
 	maxBandRows = 128
 	// scratchCap bounds the masks of all rasterizers of one Fill call.

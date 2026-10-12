@@ -155,7 +155,7 @@ func TestLoadErrors(t *testing.T) {
 		{name: "inf", content: "[types.julia]\nheight = -inf\n", errIs: ErrNotFinite, contains: "types.julia.height"},
 		{name: "short point", content: "[types.mandelbrot]\ncenter = [1.0]\n", errIs: ErrOutOfRange, contains: "center has 1 values"},
 		{name: "long point", content: "[types.julia]\nc = [1.0, 2.0, 3.0]\n", errIs: ErrOutOfRange, contains: "c has 3 values"},
-		{name: "cross check", content: "[server]\nwrite_timeout = \"30s\"\n", errIs: ErrWriteTimeout, contains: "server.write_timeout"},
+		{name: "cross check", content: "[server]\nwrite_timeout = \"17s\"\n", errIs: ErrWriteTimeout, contains: "server.write_timeout"},
 		// go-toml decodes non-string values into Duration and Color bypassing UnmarshalText.
 		{name: "integer duration", content: "[limits]\ntimeout = 30\n", errIs: ErrDecode, contains: "limits.timeout: got integer"},
 		{name: "float duration", content: "[server]\ncache_max_age = 1.5\n", errIs: ErrDecode, contains: "server.cache_max_age: got float"},
@@ -220,9 +220,9 @@ func TestValidate(t *testing.T) {
 		{"zero cache_max_age", func(c *Config) { c.Server.CacheMaxAge = 0 }, nil, ""},
 		// limits
 		{"small max_pixels", func(c *Config) { c.Limits.MaxPixels = 1023 }, ErrOutOfRange, "limits.max_pixels"},
-		{"large max_pixels", func(c *Config) { c.Limits.MaxPixels = 1<<32 + 1 }, ErrOutOfRange, "limits.max_pixels"},
+		{"large max_pixels", func(c *Config) { c.Limits.MaxPixels = 1<<30 + 1 }, ErrOutOfRange, "limits.max_pixels"},
 		{"min max_pixels", func(c *Config) { c.Limits.MaxPixels = 1024 }, nil, ""},
-		{"max max_pixels", func(c *Config) { c.Limits.MaxPixels = 1 << 32 }, nil, ""},
+		{"max max_pixels", func(c *Config) { c.Limits.MaxPixels = 1 << 30 }, nil, ""},
 		{"zero max_concurrent", func(c *Config) { c.Limits.MaxConcurrent = 0 }, ErrOutOfRange, "limits.max_concurrent"},
 		{"negative max_queued", func(c *Config) { c.Limits.MaxQueued = -1 }, ErrOutOfRange, "limits.max_queued"},
 		{"zero max_queued", func(c *Config) { c.Limits.MaxQueued = 0 }, nil, ""},

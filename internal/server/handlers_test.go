@@ -136,7 +136,7 @@ func TestImageRequests(t *testing.T) {
 		{name: "invalid size", target: "/mandelbrot/abc/", status: http.StatusBadRequest},
 		{name: "unknown kind", target: "/nope/64x48/", status: http.StatusNotFound},
 		{name: "too many pixels", target: "/mandelbrot/8192x8192/", status: http.StatusBadRequest},
-		{name: "side too large for jpeg", target: "/mandelbrot/65536x32/?format=jpeg", status: http.StatusBadRequest},
+		{name: "side above max", target: "/mandelbrot/32769x32/?format=jpeg", status: http.StatusBadRequest},
 		{name: "post", method: http.MethodPost, target: "/mandelbrot/64x48/", status: http.StatusMethodNotAllowed},
 		{name: "head", method: http.MethodHead, target: "/mandelbrot/64x48/", status: http.StatusOK, contentType: "image/png"},
 	}

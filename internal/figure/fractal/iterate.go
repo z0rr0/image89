@@ -33,6 +33,25 @@ func escapeMandelbrot(c complex128, maxIter int) (int, complex128) {
 	return escapeJulia(0, c, mandelbrotRadius2, maxIter)
 }
 
+// inMainBulbs reports whether c lies in the main cardioid or in the disk of
+// period 2 of the Mandelbrot set, which hold most of the points of the set
+// in a usual view. The orbits of their points stay bounded, so escapeMandelbrot
+// would spend maxIter iterations on each of them to return maxIter. The
+// products are rounded explicitly, as in escapeJulia.
+func inMainBulbs(c complex128) bool {
+	x, y := real(c), imag(c)
+	y2 := float64(y * y)
+	// The cardioid: q·(q + x − 1/4) <= y²/4 with q = (x − 1/4)² + y².
+	xq := x - 0.25
+	q := float64(xq*xq) + y2
+	if float64(q*(q+xq)) <= 0.25*y2 {
+		return true
+	}
+	// The disk of radius 1/4 around −1.
+	x1 := x + 1
+	return float64(x1*x1)+y2 <= 1.0/16
+}
+
 // abs2 returns |z|² with the products rounded explicitly, as in escapeJulia.
 func abs2(z complex128) float64 {
 	return float64(real(z)*real(z)) + float64(imag(z)*imag(z))

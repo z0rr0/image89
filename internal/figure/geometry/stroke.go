@@ -14,6 +14,12 @@ const (
 	maxChords = 1024
 	// strokeCheckEvery is the number of segments between two ctx checks.
 	strokeCheckEvery = 1024
+	// minTurn is the smallest turn in radians that gets a join. turn of two
+	// unit vectors carries rounding noise of about 1e-15, so a straight vertex
+	// (an inflection point of a curve) may get a turn of that size and a join
+	// of zero area, which closePolygon drops or keeps depending on FMA. The
+	// bevel of a real turn below minTurn is less than r·1e-12 px wide.
+	minTurn = 1e-12
 )
 
 // segment is a segment of a stroked line: its unit direction and its ends
@@ -127,7 +133,7 @@ func turn(d1, d2 Point) float64 {
 // line allocates no points.
 func strokePoints(ctx context.Context, pts []Point, segs int, closed bool, phi float64) (int, error) {
 	arc := func(theta float64) int {
-		if theta == 0 {
+		if math.Abs(theta) < minTurn {
 			return 0
 		}
 		return chords(phi, math.Abs(theta)) + 2
@@ -156,7 +162,7 @@ func strokePoints(ctx context.Context, pts []Point, segs int, closed bool, phi f
 // round sector of chords of at most the angle phi on the outer side of the turn.
 func (s *polygonSet) join(v Point, s1, s2 segment, phi float64) {
 	theta := turn(s1.dir, s2.dir)
-	if theta == 0 {
+	if math.Abs(theta) < minTurn {
 		return
 	}
 	// A turn towards the left side (theta > 0) has its outer side on the right.

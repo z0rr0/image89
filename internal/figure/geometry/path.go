@@ -114,11 +114,15 @@ func Fit(bbox Rect, size figure.Size, padding, halfWidth float64) Transform {
 }
 
 // area2 returns twice the signed area of the polygon (the shoelace formula).
+// The products are wrapped in float64() against FMA: a fused multiply-add
+// (arm64) keeps a residue of the rounding, so a degenerate polygon would get
+// a small nonzero area there and an exact zero elsewhere (amd64), and
+// closePolygon would keep it on one platform and drop it on the other.
 func area2(poly []Point) float64 {
 	var s float64
 	prev := poly[len(poly)-1]
 	for _, p := range poly {
-		s += prev.X*p.Y - p.X*prev.Y
+		s += float64(prev.X*p.Y) - float64(p.X*prev.Y)
 		prev = p
 	}
 	return s

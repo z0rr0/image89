@@ -292,4 +292,5 @@ at the same throughput.
 | `maxChords`                                        | 1024              | kept  | A guard: the widest line allowed (a quarter of 32768) needs 143 chords for a half circle                                                                                                 |
 
 Not calibrated, because they set the look and not the cost: `maxSagitta`, `newtonFade`, `paletteSize`,
-`sierpinskiMinSide`, `kochMinSegment`, the Lissajous point limits, `newtonMinDeriv2` and `minNewtonEpsilon`.
+`sierpinskiMinSide`, `kochMinSegment`, the Lissajous point limits, `newtonMinDeriv2`, `minNewtonEpsilon` and
+`minTurn`.

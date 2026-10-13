@@ -113,7 +113,10 @@ func TestStrokeCoverage(t *testing.T) {
 
 // TestStrokePoints checks that the capacity Stroke allocates holds all its
 // points, so the points never grow by append: the count is exact when no
-// polygon is dropped and an upper bound otherwise.
+// polygon is dropped and an upper bound otherwise. A straight vertex, such as
+// the inflection points of the Lissajous curve at t = π/2 and 3π/2, has a turn
+// of rounding noise below minTurn and gets no join in both, so koch and
+// lissajous are exact on every platform.
 func TestStrokePoints(t *testing.T) {
 	t.Parallel()
 

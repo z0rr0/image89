@@ -147,6 +147,12 @@ Gotchas:
   `chords + 2` per join or cap, with the chord angle (`chordAngle`) computed once per line. A change of `join`,
   `arc` or the rectangle must change `strokePoints` too; `TestStrokePoints` fails when the count is short.
   `strokePoints` checks ctx every `strokeCheckEvery` segments, so a canceled line allocates no points.
+- CI runs on linux/amd64; arm64 fuses `x*y ± z` into FMA, so float results in `geometry` differ in the last bits
+  (the PNGs of the contour figures differ between arm64 and amd64 too). A decision on an exact value must not
+  depend on that: `area2` wraps its products in `float64()`, so `closePolygon` drops a zero-area polygon on both,
+  and a turn below `minTurn` (rounding noise at a straight vertex, such as an inflection point) gets no join in
+  `join` and `strokePoints`. `GOARCH=amd64 go test -race ./internal/figure/geometry` runs the CI numerics on an
+  arm64 Mac under Rosetta.
 - `Fill` rasterizes bands of rows, one mask per worker. `Draw` indexes the mask from `r.Min` and needs `r` of
   exactly the mask size (the full image with the band rectangle, no `SubImage`); `Draw` consumes the mask, so
   `Reset` comes before every band. Masks are fixed point (4 B/px) up to 512 px per side, float (8 B/px)

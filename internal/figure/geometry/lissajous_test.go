@@ -86,10 +86,42 @@ func TestLissajousCount(t *testing.T) {
 		{name: "min side", a: 1, b: 32, size: figure.Size{Width: figure.MaxSide, Height: 32}, want: 1609},
 		{name: "large", a: 32, b: 1, size: figure.Size{Width: figure.MaxSide, Height: figure.MaxSide}, want: maxLissajousPoints},
 		{name: "preset", points: 500, a: 3, b: 2, size: figure.Size{Width: 1024, Height: 1024}, want: 500},
+		// The curve of 6 and 9 is the curve of 2 and 3 over the period 2π/3.
+		{name: "common divisor", a: 6, b: 9, size: figure.Size{Width: 1024, Height: 1024}, want: 4826},
+		{name: "equal", a: 32, b: 32, size: figure.Size{Width: 1024, Height: 1024}, want: 1609},
 	}
 	for _, tt := range tests {
 		if got := lissajousCount(tt.points, tt.a, tt.b, tt.size); got != tt.want {
 			t.Errorf("%s: lissajousCount = %d, want %d", tt.name, got, tt.want)
+		}
+	}
+}
+
+// TestLissajousStep checks the bound of lissajousCount: a step between
+// neighboring points moves each coordinate of a curve with the radius R by at
+// most 2 pixels while the count is below maxLissajousPoints.
+func TestLissajousStep(t *testing.T) {
+	t.Parallel()
+
+	size := figure.Size{Width: 1024, Height: 768}
+	r := side(size) / 2
+	for _, ab := range [][2]int{{3, 2}, {1, 32}, {6, 9}, {32, 32}, {31, 32}, {12, 18}} {
+		a, b := ab[0], ab[1]
+		n := lissajousCount(0, a, b, size)
+		if n == maxLissajousPoints {
+			t.Fatalf("a=%d b=%d: %d points reach the limit, choose a smaller size", a, b, n)
+		}
+		pts := lissajousPoints(a, b, math.Pi/2, n)
+		var step float64
+		for i, p := range pts {
+			q := pts[(i+1)%len(pts)]
+			step = max(step, math.Abs(q.X-p.X)*r, math.Abs(q.Y-p.Y)*r)
+		}
+		if step > 2 {
+			t.Errorf("a=%d b=%d: %d points, a step moves a coordinate by %.3f px, want at most 2", a, b, n, step)
+		}
+		if step < 1 {
+			t.Errorf("a=%d b=%d: %d points, the largest step is %.3f px, want more than 1", a, b, n, step)
 		}
 	}
 }

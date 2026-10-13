@@ -47,13 +47,15 @@ spiral inwards as the pendulums lose energy.</li>
 <h2>How Image89 draws it</h2>
 <p>Image89 uses <i>a</i> = 3, <i>b</i> = 2 and <i>δ</i> = π/2 by default; the preset allows frequencies
 from 1 to 32. The curve is approximated by points joined into a closed red line on white. By default
-their number depends on the image, so that neighboring points are about two pixels apart:</p>
+their number depends on the image, so that from one point to the next each coordinate changes by at most
+about two pixels:</p>
 
 <math display="block">
-  <mi>N</mi><mo>=</mo><mo>⌈</mo><mi>π</mi><mi>R</mi><mo>·</mo><mi>max</mi><mo>⁡</mo><mo>(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>)</mo><mo>⌉</mo>
+  <mi>N</mi><mo>=</mo><mo>⌈</mo><mfrac><mrow><mi>π</mi><mi>R</mi><mo>·</mo><mi>max</mi><mo>⁡</mo><mo>(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>)</mo></mrow><mrow><mi>gcd</mi><mo>⁡</mo><mo>(</mo><mi>a</mi><mo>,</mo><mi>b</mi><mo>)</mo></mrow></mfrac><mo>⌉</mo>
 </math>
 
-<p>where <i>R</i> is half the shorter side in pixels, from 256 to 65 536 points. The line is 0.4% of the
+<p>where <i>R</i> is half the shorter side in pixels, from 256 to 65 536 points. The two-pixel bound does
+not apply when the calculated count exceeds 65 536. The line is 0.4% of the
 shorter side wide, but at least one pixel, and the curve is fitted without distortion with a margin of 5%
 of the shorter side. The preset lives in the <code>[types.lissajous]</code> section of the config.</p>
 

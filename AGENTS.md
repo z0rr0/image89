@@ -203,7 +203,7 @@ Gotchas:
 - Keep changes minimal and consistent with existing patterns
 - Update documentation (e.g., README.md) when introducing new functionality or behavioral changes
 - `README.md` stays a short overview; reference details go to `docs/usage.md`, `docs/deployment.md` or
-  `docs/figures.md`, with a link from README. README and these docs follow the ASD-STE100 writing rules for
-  readers with technical English: sentences up to 20 words in procedures and 25 in descriptions, active voice,
+  `docs/figures.md`, with a link from README. README and these docs follow selected ASD-STE100 writing rules
+  (the approved dictionary is not required) for readers with technical English: sentences up to 20 words in procedures and 25 in descriptions, active voice,
   imperative steps, one term for one meaning (`figure` is the shape, `type` is its name in `-t` and the URL).
 - Save important notes to this file `AGENTS.md` if it is relevant to the codebase or project.

@@ -50,7 +50,7 @@ docker run --rm -p 8080:8080 z0rr0/image89      # the server in Docker
 
 ## How it works
 
-Image89 draws each image on request and does not store it. For each request, the server:
+Image89 draws each image on request and does not store it. For each image request, the server:
 
 1. Checks the type, the size and the format.
 2. Waits for a free generation slot. If the queue is full or the wait is too long, it returns `503`.
@@ -148,8 +148,9 @@ A request to `/koch/` in a browser:
 ### Use a reverse proxy
 
 Run the server behind a reverse proxy that buffers responses. A generation slot stays busy until
-the server sends the whole image. A slow client can hold a slot for up to `server.write_timeout` (30s),
-and other requests get `503`. nginx buffers responses by default (`proxy_buffering on`). Keep this setting.
+the server sends the whole image. A slow client can hold a slot for up to `server.write_timeout` (30s).
+If slow clients occupy all generation slots, other image requests can get `503`.
+nginx buffers responses by default (`proxy_buffering on`). Keep this setting.
 
 [docs/nginx.conf](docs/nginx.conf) is a full nginx example with TLS, buffering, an image cache and
 limits for each client. [docs/deployment.md](docs/deployment.md) explains the limits, the proxy setup
@@ -205,7 +206,7 @@ Rules for values:
 - `server.read_header_timeout` must not be more than `server.read_timeout`.
 - `server.write_timeout` must be more than `limits.queue_timeout + limits.timeout`.
 
-Each concurrent image needs memory. With the defaults, the process uses up to about 0.5 GB under load.
+Each concurrent image needs memory. In the load tests with the default limits, the peak RSS was 0.42–0.51 GB.
 [docs/deployment.md](docs/deployment.md#memory) has the formula and tells how to decrease it.
 
 ## Development

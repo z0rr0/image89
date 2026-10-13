@@ -49,14 +49,16 @@ func (g *Lissajous) Generate(ctx context.Context, size figure.Size) (*image.RGBA
 }
 
 // lissajousCount returns points if it is set. Otherwise it chooses the number
-// of points from the image size, so that the chords of a curve with the radius
-// R = min(W, H)/2 pixels are about 2 pixels long: ceil(π·R·max(a, b)) within
-// [minLissajousPoints, maxLissajousPoints].
+// of points from the image size: ceil(π·R·max(a, b)/gcd(a, b)) within
+// [minLissajousPoints, maxLissajousPoints], where R = min(W, H)/2 pixels.
+// The points cover the period 2π/gcd(a, b), so a step of t is at most
+// 2/(R·max(a, b)) and moves each coordinate of a curve with the radius R by
+// at most 2 pixels, unless maxLissajousPoints applies.
 func lissajousCount(points, a, b int, size figure.Size) int {
 	if points > 0 {
 		return points
 	}
-	n := math.Ceil(math.Pi * side(size) / 2 * float64(max(a, b)))
+	n := math.Ceil(math.Pi * side(size) / 2 * float64(max(a, b)/gcd(a, b)))
 	return int(min(max(n, minLissajousPoints), maxLissajousPoints))
 }
 

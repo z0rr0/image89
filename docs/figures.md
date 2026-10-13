@@ -1,6 +1,6 @@
 # Figures
 
-Image89 draws six figures. Below are the rules of the drawing and the effect of the image size.
+This page explains how Image89 draws each figure and how the image size affects the detail.
 For the history and formulas of a figure, open `/<type>/info/` on the server. The presets of the figures
 are in the `[types.<type>]` sections of [config.toml](config.toml).
 
@@ -29,15 +29,16 @@ at any aspect ratio. One axis then shows more of the plane. Image89 does not str
 ## Geometric figures
 
 `sierpinski`, `koch` and `lissajous` are geometric figures. Image89 builds them as polygons, fits them into
-the image with a padding and without distortion, and draws them with anti-aliasing.
+the image with padding and without distortion, and draws them with anti-aliasing.
 
 The level of detail depends on the image size:
 
 - Sierpiński triangle: if the image is small, Image89 uses a lower depth. The smallest triangles must be
   at least 4 px wide. For example, a 32×32 image shows depth 2.
 - Koch snowflake: if the image is small, Image89 uses a lower depth. Each segment must be at least 1 px long.
-- Lissajous curve: with `points = 0`, Image89 uses ⌈π·R·max(a, b)⌉ points, from 256 to 65 536.
-  R is half of the shorter image side. Neighboring points are then about 2 px apart.
+- Lissajous curve: with `points = 0`, Image89 uses ⌈π·R·max(a, b)/gcd(a, b)⌉ points, from 256 to 65 536.
+  R is half of the shorter image side. From one point to the next, each coordinate changes by at most about 2 px.
+  This is not true when the limit of 65 536 points applies.
 
 The line width is `line_width` multiplied by the shorter image side, but at least 1 px. Lines have round joins.
 The padding is also a fraction of the shorter image side.

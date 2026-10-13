@@ -91,9 +91,8 @@ a = 3
 b = 2
 # π/2
 delta = 1.5707963267948966
-# Number of curve points: 0 chooses ⌈π·R·max(a, b)⌉ within 256..65536, where R is
-# half the shorter image side, so neighboring points are about 2 px apart;
-# otherwise 16..65536.
+# Number of curve points: 0 chooses ⌈π·R·max(a, b)/gcd(a, b)⌉ within 256..65536,
+# where R is half the shorter image side; otherwise 16..65536.
 points = 0
 line_width = 0.004
 padding = 0.05

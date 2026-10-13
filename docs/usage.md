@@ -92,8 +92,9 @@ is ready, the server sends no response. The access log records this request with
 
 ## Headers and logs
 
-The server sends images with `Cache-Control: public, max-age=<server.cache_max_age>`. If `cache_max_age`
-is `"0s"`, the server does not send this header. For one version and one config, the same URL always gives
+The server sends images with `Cache-Control: public, max-age=<seconds>`. The value is `server.cache_max_age`
+rounded down to whole seconds: `"1h"` gives `max-age=3600`. If `cache_max_age` is less than 1s, for example
+`"0s"`, the server does not send this header. For one version and one config, the same URL always gives
 the same image, so caches can keep it. After a change of the presets or of the version, clients get the new
 image only when `cache_max_age` expires.
 

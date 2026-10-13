@@ -7,7 +7,7 @@ the memory and Docker. The values in parentheses are the defaults from [config.t
 
 Generation uses a lot of CPU, so the server limits it:
 
-- At most `limits.max_concurrent` (2) images are generated and sent at the same time.
+- The server generates and sends at most `limits.max_concurrent` (2) images at a time.
 - At most `limits.max_queued` (8) requests wait for a free slot. Each request waits for up to
   `limits.queue_timeout` (2s).
 - After a request gets a slot, the server must generate and encode the image within `limits.timeout` (15s).
@@ -24,7 +24,7 @@ Run the server behind a reverse proxy that buffers responses.
 
 A generation slot stays busy until the server sends the whole image. A client that reads slowly holds
 the slot until `server.write_timeout` (30s) stops its response. For example, two clients read 4096×4096
-images at 128 KiB/s. With the default two slots, all other requests get `503` for 30 seconds.
+images at 128 KiB/s. With the default two slots, all other image requests get `503` for 30 seconds.
 
 nginx buffers proxied responses by default (`proxy_buffering on`). It receives the image at once and
 releases the slot. Then nginx sends the image to the slow client. Keep the buffering on.
@@ -56,19 +56,20 @@ max_concurrent × (4 · max_pixels + 32 MiB + polygons + 2 × encoded image size
 With the defaults (`max_concurrent = 2`, `max_pixels = 16777216`), this is about 2 × 125 MiB.
 
 The process takes up to about twice the peak heap. The cause is the Go GC: with `GOGC=100`,
-the heap can grow by 100% between two collections. Under load, the process took 0.42–0.51 GB.
+the heap can grow by 100% between two collections. In the load tests of [benchmarks.md](benchmarks.md)
+with the default limits and 2 to 8 clients, the peak RSS was 0.42–0.51 GB.
 
 To decrease it, set the `GOMEMLIMIT` environment variable near the value of the formula,
-for example `GOMEMLIMIT=300MiB`. Then the GC collects earlier. With this value, the process took 0.34 GB
-at the same throughput.
+for example `GOMEMLIMIT=300MiB`. Then the GC collects earlier. With this value and 8 clients, the peak RSS
+was 449 MB and the memory footprint was 338 MB, at about the same throughput.
 
 ## Sizing
 
 PNG and JPEG encoding runs in one goroutine and takes half or more of the request time. So more slots
 give more throughput, although each image already uses all cores (`limits.workers = 0`).
 
-On 8 cores, `max_concurrent = 4` serves 44% more 1024×1024 images per second than 2. It takes up to
-about 0.75 GB at `max_pixels`. On fewer cores, two slots are enough.
+On the 8-core test machine of the benchmarks, `max_concurrent = 4` served 44% more 1024×1024 images
+per second than 2. It took up to about 0.75 GB at `max_pixels`. On fewer cores, two slots are enough.
 [benchmarks.md](benchmarks.md) has the measurements behind the defaults.
 
 ## Docker

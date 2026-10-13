@@ -19,6 +19,7 @@ import (
 
 	"github.com/z0rr0/image89/internal/config"
 	"github.com/z0rr0/image89/internal/figure"
+	"github.com/z0rr0/image89/internal/pages"
 	"github.com/z0rr0/image89/internal/render"
 )
 
@@ -190,6 +191,25 @@ func TestImageNoCacheControl(t *testing.T) {
 	}
 	if got := rec.Header().Get("Cache-Control"); got != "" {
 		t.Errorf("Cache-Control = %q, want none for cache_max_age = 0", got)
+	}
+}
+
+func TestPageNoCacheControl(t *testing.T) {
+	t.Parallel()
+
+	cfg := config.Default()
+	cfg.Server.CacheMaxAge = 0
+	s := newTestServer(t, cfg, &stubRenderer{})
+	rec := serveRequest(t, s, http.MethodGet, "/")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	h := rec.Header()
+	if got := h.Get("Cache-Control"); got != "" {
+		t.Errorf("Cache-Control = %q, want none for cache_max_age = 0", got)
+	}
+	if got, want := h.Get("ETag"), s.pages.Index().ETag; got != want {
+		t.Errorf("ETag = %q, want %q", got, want)
 	}
 }
 
@@ -442,6 +462,12 @@ func TestPages(t *testing.T) {
 			if h.Get("Content-Length") == "" {
 				t.Error("no Content-Length")
 			}
+			if got := h.Get("Cache-Control"); got != "public, max-age=3600" {
+				t.Errorf("Cache-Control = %q, want public, max-age=3600", got)
+			}
+			if h.Get("ETag") == "" {
+				t.Error("no ETag")
+			}
 			if !strings.Contains(rec.Body.String(), tt.contains) {
 				t.Errorf("body does not contain %q", tt.contains)
 			}
@@ -449,13 +475,130 @@ func TestPages(t *testing.T) {
 	}
 }
 
+func TestPageNotModified(t *testing.T) {
+	t.Parallel()
+
+	s := newTestServer(t, config.Default(), &stubRenderer{})
+	index := s.pages.Index()
+	info, err := s.pages.Info(figure.Mandelbrot)
+	if err != nil {
+		t.Fatalf("Info error: %v", err)
+	}
+	tests := []struct {
+		name        string
+		method      string
+		target      string
+		page        pages.Page
+		ifNoneMatch string
+		status      int
+	}{
+		{name: "index", target: "/", page: index, ifNoneMatch: index.ETag, status: http.StatusNotModified},
+		{name: "info", target: "/mandelbrot/info/", page: info, ifNoneMatch: info.ETag, status: http.StatusNotModified},
+		// nginx makes the ETag weak when it compresses a page.
+		{name: "weak", target: "/", page: index, ifNoneMatch: "W/" + index.ETag, status: http.StatusNotModified},
+		{name: "list", target: "/", page: index, ifNoneMatch: `"other", ` + index.ETag, status: http.StatusNotModified},
+		{
+			name: "head", method: http.MethodHead, target: "/", page: index, ifNoneMatch: index.ETag,
+			status: http.StatusNotModified,
+		},
+		{name: "other", target: "/", page: index, ifNoneMatch: `"other"`, status: http.StatusOK},
+		{name: "another page", target: "/", page: index, ifNoneMatch: info.ETag, status: http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := serveWithHeader(t, s, cmpOr(tt.method, http.MethodGet), tt.target, "If-None-Match", tt.ifNoneMatch)
+			if rec.Code != tt.status {
+				t.Fatalf("%s = %d, want %d", tt.target, rec.Code, tt.status)
+			}
+			var body []byte
+			if tt.status == http.StatusOK {
+				body = tt.page.Body
+			}
+			if !bytes.Equal(rec.Body.Bytes(), body) {
+				t.Errorf("body has %d bytes, want %d", rec.Body.Len(), len(body))
+			}
+			h := rec.Header()
+			if got := h.Get("ETag"); got != tt.page.ETag {
+				t.Errorf("ETag = %q, want %q", got, tt.page.ETag)
+			}
+			if got := h.Get("Cache-Control"); got != "public, max-age=3600" {
+				t.Errorf("Cache-Control = %q, want public, max-age=3600", got)
+			}
+		})
+	}
+}
+
+func TestStaticErrorHeaders(t *testing.T) {
+	t.Parallel()
+
+	s := newTestServer(t, config.Default(), &stubRenderer{})
+	etag := s.pages.Index().ETag
+	tests := []struct {
+		name   string
+		target string
+		key    string
+		value  string
+		status int
+	}{
+		{name: "page If-Match", target: "/", key: "If-Match", value: etag, status: http.StatusOK},
+		{name: "page other If-Match", target: "/", key: "If-Match", value: `"other"`, status: http.StatusPreconditionFailed},
+		// If-Match compares strongly, so a weak tag never matches.
+		{name: "page weak If-Match", target: "/", key: "If-Match", value: "W/" + etag, status: http.StatusPreconditionFailed},
+		{name: "page Range", target: "/", key: "Range", value: "bytes=1000000-", status: http.StatusRequestedRangeNotSatisfiable},
+		{
+			name: "favicon other If-Match", target: "/favicon.ico", key: "If-Match", value: `"other"`,
+			status: http.StatusPreconditionFailed,
+		},
+		{
+			name: "favicon Range", target: "/favicon.ico", key: "Range", value: "bytes=1000000-",
+			status: http.StatusRequestedRangeNotSatisfiable,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rec := serveWithHeader(t, s, http.MethodGet, tt.target, tt.key, tt.value)
+			if rec.Code != tt.status {
+				t.Fatalf("%s with %s = %d, want %d", tt.target, tt.key, rec.Code, tt.status)
+			}
+			h := rec.Header()
+			if tt.status == http.StatusOK {
+				if h.Get("Cache-Control") == "" || h.Get("ETag") != etag {
+					t.Errorf("Cache-Control = %q, ETag = %q; want both", h.Get("Cache-Control"), h.Get("ETag"))
+				}
+				return
+			}
+			for _, key := range []string{"Cache-Control", "ETag"} {
+				if got := h.Get(key); got != "" {
+					t.Errorf("error response has %s %q", key, got)
+				}
+			}
+		})
+	}
+}
+
+// serveWithHeader runs a request with one header through the full handler of s.
+func serveWithHeader(t *testing.T, s *Server, method, target, key, value string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequestWithContext(t.Context(), method, target, nil)
+	req.Header.Set(key, value)
+	rec := httptest.NewRecorder()
+	s.srv.Handler.ServeHTTP(rec, req)
+	return rec
+}
+
 // noInfoPages are pages without any info page.
 type noInfoPages struct{}
 
-func (noInfoPages) Index() []byte { return []byte("index") }
+func (noInfoPages) Index() pages.Page { return pages.Page{Body: []byte("index"), ETag: `"index"`} }
 
-func (noInfoPages) Info(kind figure.Kind) ([]byte, error) {
-	return nil, errors.Join(figure.ErrUnknownKind, fmt.Errorf("%q has no info page", kind))
+func (noInfoPages) Info(kind figure.Kind) (pages.Page, error) {
+	return pages.Page{}, errors.Join(figure.ErrUnknownKind, fmt.Errorf("%q has no info page", kind))
 }
 
 func TestInfoWithoutPage(t *testing.T) {

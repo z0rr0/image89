@@ -33,9 +33,13 @@ releases the slot. Then nginx sends the image to the slow client. Keep the buffe
 
 - TLS and a redirect from HTTP.
 - Buffering of responses, so slow clients do not hold generation slots.
-- A shared cache of images. Image89 sends images with `Cache-Control`, so nginx keeps them for
+- A shared cache of images and pages. Image89 sends them with `Cache-Control`, so nginx keeps them for
   `server.cache_max_age`. With `proxy_cache_lock`, concurrent requests for one image wait for one generation:
-  8 requests for a new 4096×4096 image caused one generation. nginx does not cache pages and errors.
+  8 requests for a new 4096×4096 image caused one generation. nginx does not cache errors. For a page in
+  its cache, nginx itself returns `304` when `If-None-Match` contains the `ETag` of the page.
+  nginx can send an expired response while it gets a new one, or when Image89 is busy or down
+  (`proxy_cache_use_stale`). Thus `cache_max_age` is not an upper limit for the age of an image or page.
+  If you clear the nginx cache after an update, browsers keep their copies until `cache_max_age` expires.
 - Limits for each client address: 5 requests per second with a burst of 20, and 8 concurrent requests.
   Above these limits, nginx returns `429`.
 - Timeouts that match the defaults of Image89, and the request ID in `X-Request-ID`.

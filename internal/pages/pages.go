@@ -5,7 +5,9 @@ package pages
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"html/template"
@@ -22,8 +24,15 @@ var templates embed.FS
 
 // Pages holds the rendered pages. It is safe for concurrent use.
 type Pages struct {
-	index []byte
-	info  map[figure.Kind][]byte
+	index Page
+	info  map[figure.Kind]Page
+}
+
+// Page is a rendered page. Body is shared and must not be modified.
+type Page struct {
+	Body []byte
+	// ETag is the strong entity tag of Body, quoted.
+	ETag string
 }
 
 // entry is a figure on the index page.
@@ -58,7 +67,7 @@ func newPages(fsys fs.FS, version string, kinds []figure.Kind) (*Pages, error) {
 		return nil, fmt.Errorf("parse base template: %w", err)
 	}
 
-	p := &Pages{info: make(map[figure.Kind][]byte)}
+	p := &Pages{info: make(map[figure.Kind]Page)}
 	for _, kind := range figure.Kinds() {
 		name := "templates/info/" + string(kind) + ".html"
 		if _, err = fs.Stat(fsys, name); errors.Is(err, fs.ErrNotExist) {
@@ -83,32 +92,38 @@ func newPages(fsys fs.FS, version string, kinds []figure.Kind) (*Pages, error) {
 }
 
 // execute renders the page template name of fsys on a copy of base.
-func execute(fsys fs.FS, base *template.Template, name string, d data) ([]byte, error) {
+func execute(fsys fs.FS, base *template.Template, name string, d data) (Page, error) {
 	t, err := base.Clone()
 	if err != nil {
-		return nil, fmt.Errorf("clone base template for %s: %w", name, err)
+		return Page{}, fmt.Errorf("clone base template for %s: %w", name, err)
 	}
 	if _, err = t.ParseFS(fsys, name); err != nil {
-		return nil, fmt.Errorf("parse template %s: %w", name, err)
+		return Page{}, fmt.Errorf("parse template %s: %w", name, err)
 	}
 	var buf bytes.Buffer
 	if err = t.ExecuteTemplate(&buf, baseTemplate, d); err != nil {
-		return nil, fmt.Errorf("execute template %s: %w", name, err)
+		return Page{}, fmt.Errorf("execute template %s: %w", name, err)
 	}
-	return buf.Bytes(), nil
+	return Page{Body: buf.Bytes(), ETag: etag(buf.Bytes())}, nil
 }
 
-// Index returns the index page. The bytes are shared and must not be modified.
-func (p *Pages) Index() []byte {
+// etag returns the strong entity tag of body: the first 8 bytes of its SHA-256
+// in hex, quoted. The hash covers the version, the kinds and the templates.
+func etag(body []byte) string {
+	sum := sha256.Sum256(body)
+	return `"` + hex.EncodeToString(sum[:8]) + `"`
+}
+
+// Index returns the index page.
+func (p *Pages) Index() Page {
 	return p.index
 }
 
 // Info returns the info page of kind, or figure.ErrUnknownKind if it has none.
-// The bytes are shared and must not be modified.
-func (p *Pages) Info(kind figure.Kind) ([]byte, error) {
+func (p *Pages) Info(kind figure.Kind) (Page, error) {
 	page, ok := p.info[kind]
 	if !ok {
-		return nil, errors.Join(figure.ErrUnknownKind, fmt.Errorf("%q has no info page", kind))
+		return Page{}, errors.Join(figure.ErrUnknownKind, fmt.Errorf("%q has no info page", kind))
 	}
 	return page, nil
 }

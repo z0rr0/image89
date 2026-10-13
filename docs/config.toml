@@ -16,7 +16,7 @@ read_header_timeout = "5s"
 write_timeout = "30s"
 idle_timeout = "60s"
 shutdown_timeout = "10s"
-# Cache-Control max-age of images; "0s" disables the header.
+# Cache-Control max-age of images and pages; "0s" disables the header.
 cache_max_age = "1h"
 
 [limits]

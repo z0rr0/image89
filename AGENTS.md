@@ -135,6 +135,11 @@ Gotchas:
   and links an info page only if `templates/info/<kind>.html` exists. MathML in templates uses literal UTF-8
   (`−`, `→`, `∞`), no named entities. The base template links `/favicon.ico`, embedded in `internal/server`.
   The icon supports GET and HEAD, uses the image cache header and does not take a render slot.
+  `writePage` serves a page with `http.ServeContent`, the image cache header and the `ETag` of `pages.Page`
+  (the first 8 bytes of the SHA-256 of the body, computed once by `pages.New`): a matching `If-None-Match`,
+  also weak, gets `304`, a `Range` gets `206`. Pages and the favicon go through `serveStatic`, which wraps the
+  writer in `staticWriter`: it removes `Cache-Control` and `ETag` from a status ≥ 400. `ServeContent` cleans
+  its own errors (416), but writes 412 for a failed `If-Match` with the headers of the caller.
 - Server tests: queue and cancel tests call `Handler.ServeHTTP` directly inside `testing/synctest` (no network)
   with a `fakeWriter` that blocks in `Write`; lifecycle tests use a real listener on `127.0.0.1:0` and real time.
 - `golang.org/x/image/vector` sums signed coverage and clamps `|sum|` to 1: polygons of opposite orientations
@@ -180,8 +185,12 @@ Gotchas:
   reproduces it. The process RSS is up to twice the peak heap (`GOGC`); `GOMEMLIMIT` lowers it.
 - `docs/nginx.conf` follows the config defaults: `proxy_read_timeout` above `queue_timeout + timeout` and at most
   `write_timeout`, `proxy_cache_lock_timeout` about one generation, upstream `keepalive_timeout` below
-  `server.idle_timeout`. nginx caches only responses with `Cache-Control`, i.e. images; keep pages and errors
-  without it. A cached response keeps the upstream headers, so `X-Request-ID` is hidden and set from the current
+  `server.idle_timeout`. nginx caches only responses with a cache time in `Cache-Control`: images, the favicon
+  and pages; keep errors without it. With `proxy_cache`, nginx replaces the client `If-None-Match` with
+  `$upstream_cache_etag`, so a `304` comes from nginx itself: for a cached page (`HIT`), and also for a response
+  without `Cache-Control` (`MISS`, Image89 still sends the full body). For `private`, `no-cache` or `no-store`
+  nginx makes no `304` (`disable_not_modified`), so such pages always get `200` behind it (nginx 1.31.6).
+  A cached response keeps the upstream headers, so `X-Request-ID` is hidden and set from the current
   `$request_id`. Change the file with those values and check it with `nginx -t` (e.g. in `nginx:alpine`).
 
 ## Code Style Conventions

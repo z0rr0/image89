@@ -14,6 +14,7 @@ import (
 
 	"github.com/z0rr0/image89/internal/config"
 	"github.com/z0rr0/image89/internal/figure"
+	"github.com/z0rr0/image89/internal/pages"
 	"github.com/z0rr0/image89/internal/render"
 )
 
@@ -25,12 +26,12 @@ type Renderer interface {
 	Render(ctx context.Context, req render.Request, sink func([]byte) error) error
 }
 
-// Pages holds the static HTML pages; *pages.Pages implements it. The returned
-// bytes are shared and must not be modified.
+// Pages holds the static HTML pages; *pages.Pages implements it. The bodies of
+// the returned pages are shared and must not be modified.
 type Pages interface {
-	Index() []byte
+	Index() pages.Page
 	// Info returns the page of the kind or an error with figure.ErrUnknownKind.
-	Info(kind figure.Kind) ([]byte, error)
+	Info(kind figure.Kind) (pages.Page, error)
 }
 
 // Server wraps the standard library HTTP server with the Image89 routes.
@@ -39,7 +40,7 @@ type Server struct {
 	renderer Renderer
 	pages    Pages
 	version  string
-	// cacheControl is the Cache-Control header of images, empty for none.
+	// cacheControl is the Cache-Control header of images and pages, empty for none.
 	cacheControl string
 	// cancelBase cancels the base context of every request.
 	cancelBase context.CancelFunc
@@ -86,8 +87,8 @@ func New(cfg *config.Config, r Renderer, p Pages, version string) *Server {
 	return s
 }
 
-// cacheControl returns the Cache-Control header of images for maxAge, or an
-// empty string when maxAge is shorter than a second.
+// cacheControl returns the Cache-Control header of images and pages for maxAge,
+// or an empty string when maxAge is shorter than a second.
 func cacheControl(maxAge config.Duration) string {
 	seconds := int64(maxAge.Timed() / time.Second)
 	if seconds <= 0 {

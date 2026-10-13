@@ -1,15 +1,18 @@
 package server
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/z0rr0/image89/internal/encode"
 	"github.com/z0rr0/image89/internal/figure"
+	"github.com/z0rr0/image89/internal/pages"
 	"github.com/z0rr0/image89/internal/render"
 )
 
@@ -25,8 +28,8 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 	writeText(w, http.StatusOK, s.version)
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, _ *http.Request) {
-	writeHTML(w, s.pages.Index())
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	s.writePage(w, r, s.pages.Index())
 }
 
 func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +43,7 @@ func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	writeHTML(w, page)
+	s.writePage(w, r, page)
 }
 
 // handleImage serves GET /{kind}/{size}/ and GET /{kind}/ (the default size)
@@ -151,10 +154,41 @@ func writeText(w http.ResponseWriter, status int, msg string) {
 	_, _ = io.WriteString(w, msg)
 }
 
-func writeHTML(w http.ResponseWriter, page []byte) {
+// writePage serves a page with its ETag and the cache header of images.
+func (s *Server) writePage(w http.ResponseWriter, r *http.Request, page pages.Page) {
 	h := w.Header()
 	h.Set("Content-Type", "text/html; charset=utf-8")
-	h.Set("Content-Length", strconv.Itoa(len(page)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(page) //nolint:gosec // G705: pages are rendered by html/template from embedded templates
+	h.Set("ETag", page.ETag)
+	if s.cacheControl != "" {
+		h.Set("Cache-Control", s.cacheControl)
+	}
+	serveStatic(w, r, "", page.Body)
 }
+
+// serveStatic serves content fixed for the process lifetime with
+// http.ServeContent: it answers a matching If-None-Match with 304, HEAD
+// without a body and Range with 206. An error response loses the cache
+// headers set by the caller (see staticWriter).
+func serveStatic(w http.ResponseWriter, r *http.Request, name string, content []byte) {
+	http.ServeContent(staticWriter{w}, r, name, time.Time{}, bytes.NewReader(content))
+}
+
+// staticWriter removes Cache-Control and ETag from a response with an error
+// status. http.ServeContent removes them for its own errors, such as 416, but
+// writes 412 for a failed If-Match with the headers of the caller.
+type staticWriter struct {
+	http.ResponseWriter
+}
+
+func (w staticWriter) WriteHeader(status int) {
+	if status >= http.StatusBadRequest {
+		h := w.Header()
+		h.Del("Cache-Control")
+		h.Del("ETag")
+	}
+	w.ResponseWriter.WriteHeader(status)
+}
+
+// Unwrap allows http.ResponseController to reach optional interfaces provided
+// by the underlying writer.
+func (w staticWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

@@ -196,7 +196,7 @@ The file contains only the values that you change. Unknown keys and invalid valu
 
 | Section          | Contents                                                                                                           |
 |------------------|--------------------------------------------------------------------------------------------------------------------|
-| `[server]`       | `addr`, `debug`, HTTP timeouts, `shutdown_timeout`, `cache_max_age` of images                                      |
+| `[server]`       | `addr`, `debug`, HTTP timeouts, `shutdown_timeout`, `cache_max_age` of images and pages                            |
 | `[limits]`       | `max_pixels`, `max_concurrent`, `max_queued`, `queue_timeout`, `timeout`, `workers`, `max_iterations`, `max_depth` |
 | `[types.<type>]` | preset of each figure: iterations or depth, visible area, colors, line width, padding                              |
 

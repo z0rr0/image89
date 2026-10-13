@@ -80,7 +80,7 @@ type Server struct {
 	IdleTimeout Duration `toml:"idle_timeout"`
 	// ShutdownTimeout is the graceful shutdown deadline.
 	ShutdownTimeout Duration `toml:"shutdown_timeout"`
-	// CacheMaxAge is the Cache-Control max-age of images; 0 means no header.
+	// CacheMaxAge is the Cache-Control max-age of images and pages; 0 means no header.
 	CacheMaxAge Duration `toml:"cache_max_age"`
 }
 

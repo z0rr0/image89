@@ -234,4 +234,5 @@ constants, and the commands to repeat them. [AGENTS.md](AGENTS.md) describes the
 
 ## License
 
-[MIT](LICENSE)
+This source code is governed by a [MIT](https://opensource.org/license/MIT)
+license that can be found in the [LICENSE](LICENSE) file.

@@ -26,12 +26,16 @@ This document provides information for AI agents working on the **Image89** code
 ├── docs/config.toml     # annotated config, every value equals config.Default()
 ├── docs/benchmarks.md   # measurements behind the defaults and internal constants, how to repeat them
 ├── docs/nginx.conf      # production nginx example: TLS, buffering, image cache with lock, limits per address
+├── docs/usage.md        # CLI and HTTP reference: output file, exit codes, routes, statuses, headers, shutdown
+├── docs/deployment.md   # production: generation limits, reverse proxy, memory formula, sizing, Docker stop
+├── docs/figures.md      # how each figure is drawn, detail by image size
+├── docs/images/         # screenshots for README.md
 ├── Makefile             # build, test, bench, lint, dist, docker targets
 ├── Dockerfile           # multi-stage image z0rr0/image89
 ├── docker-compose.yml   # service with /health healthcheck
 ├── .github/workflows/   # CI: build, vet, test, golangci-lint, govulncheck
 ├── .golangci.yml        # linter and formatter configuration
-├── README.md            # project overview, usage and configuration reference
+├── README.md            # overview: features, install, quick start, short usage, links to docs/
 └── AGENTS.md            # this guide
 ```
 
@@ -198,4 +202,8 @@ Gotchas:
 - Focus on fixing issues at the root cause; avoid superficial patches
 - Keep changes minimal and consistent with existing patterns
 - Update documentation (e.g., README.md) when introducing new functionality or behavioral changes
+- `README.md` stays a short overview; reference details go to `docs/usage.md`, `docs/deployment.md` or
+  `docs/figures.md`, with a link from README. README and these docs follow the ASD-STE100 writing rules for
+  readers with technical English: sentences up to 20 words in procedures and 25 in descriptions, active voice,
+  imperative steps, one term for one meaning (`figure` is the shape, `type` is its name in `-t` and the URL).
 - Save important notes to this file `AGENTS.md` if it is relevant to the codebase or project.

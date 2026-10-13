@@ -133,8 +133,8 @@ Gotchas:
   A canceled request writes nothing, and the access log records it with `status=0` at the info level.
 - Pages are embedded and rendered into bytes once by `pages.New`; the index lists the kinds of the renderer
   and links an info page only if `templates/info/<kind>.html` exists. MathML in templates uses literal UTF-8
-  (`−`, `→`, `∞`), no named entities. The base template has `<link rel="icon" href="data:,">`, otherwise
-  every page view asks for `/favicon.ico` and logs a 404 warning.
+  (`−`, `→`, `∞`), no named entities. The base template links `/favicon.ico`, embedded in `internal/server`.
+  The icon supports GET and HEAD, uses the image cache header and does not take a render slot.
 - Server tests: queue and cancel tests call `Handler.ServeHTTP` directly inside `testing/synctest` (no network)
   with a `fakeWriter` that blocks in `Write`; lifecycle tests use a real listener on `127.0.0.1:0` and real time.
 - `golang.org/x/image/vector` sums signed coverage and clamps `|sum|` to 1: polygons of opposite orientations

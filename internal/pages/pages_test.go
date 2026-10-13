@@ -10,6 +10,9 @@ import (
 	"github.com/z0rr0/image89/internal/figure"
 )
 
+// githubLink is the link to the repository in the footer of every page.
+const githubLink = `<a href="https://github.com/z0rr0/image89">GitHub</a>`
+
 func TestIndex(t *testing.T) {
 	t.Parallel()
 
@@ -20,7 +23,9 @@ func TestIndex(t *testing.T) {
 	}
 	index := string(p.Index())
 
-	for _, want := range []string{"<!doctype html>", `<html lang="en">`, "<title>Image89</title>", "Image89 v1.2.3", "</html>"} {
+	for _, want := range []string{
+		"<!doctype html>", `<html lang="en">`, "<title>Image89</title>", "Image89 v1.2.3", githubLink, "</html>",
+	} {
 		if !strings.Contains(index, want) {
 			t.Errorf("index does not contain %q", want)
 		}
@@ -87,7 +92,7 @@ func TestInfoPages(t *testing.T) {
 			s, name := string(page), figureName(kind)
 			for _, want := range []string{
 				"<title>" + name + " · Image89</title>", "<h1>" + name + "</h1>", `<math display="block">`,
-				`<img src="/` + string(kind) + `/640x480/"`, `<a href="/` + string(kind) + `/">`, "Image89 v1",
+				`<img src="/` + string(kind) + `/640x480/"`, `<a href="/` + string(kind) + `/">`, "Image89 v1", githubLink,
 			} {
 				if !strings.Contains(s, want) {
 					t.Errorf("info page does not contain %q", want)

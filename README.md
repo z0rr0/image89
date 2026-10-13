@@ -234,5 +234,5 @@ constants, and the commands to repeat them. [AGENTS.md](AGENTS.md) describes the
 
 ## License
 
-This source code is governed by a [MIT](https://opensource.org/license/MIT)
-license that can be found in the [LICENSE](LICENSE) file.
+Image89 uses the [MIT License](https://opensource.org/license/MIT).
+The full text is in the [LICENSE](LICENSE) file.

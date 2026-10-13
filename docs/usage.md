@@ -67,6 +67,7 @@ curl -o pic.jpg 'http://localhost:8080/julia/640x480/?format=jpeg'
 | `GET /`                                   | index of figures with thumbnails          |
 | `GET /health`                             | `200 OK`, used by the compose healthcheck |
 | `GET /version`                            | application version                       |
+| `GET /favicon.ico`                        | site icon (`image/vnd.microsoft.icon`)     |
 
 - `HEAD` works for each `GET` route.
 - The type is necessary in the image path. The path `/` gives the index page.
@@ -97,6 +98,8 @@ rounded down to whole seconds: `"1h"` gives `max-age=3600`. If `cache_max_age` i
 `"0s"`, the server does not send this header. For one version and one config, the same URL always gives
 the same image, so caches can keep it. After a change of the presets or of the version, clients get the new
 image only when `cache_max_age` expires.
+
+The favicon is embedded in the binary. It uses the same cache header as generated images.
 
 Each response has an `X-Request-ID` header. If the request has a valid `X-Request-ID`, the server uses it.
 A valid ID has up to 64 letters, digits, `-` and `_`. If the ID is not valid or not present, the server

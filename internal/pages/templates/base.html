@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="data:,">
+<link rel="icon" href="/favicon.ico" type="image/vnd.microsoft.icon">
 <title>{{block "title" .}}Image89{{end}}</title>
 <style>
   :root { color-scheme: light dark; --muted: #6b7280; --line: #d1d5db; --accent: #1d4ed8; }
@@ -28,6 +28,11 @@
 <main>
 {{block "content" .}}{{end}}
 </main>
-<footer><span>Image89 {{.Version}}</span><a href="/version">version</a><a href="/health">health</a></footer>
+  <footer>
+    <span>Image89 {{.Version}}</span>
+    <a href="/version">version</a>
+    <a href="/health">health</a>
+    <a href="https://github.com/z0rr0/image89">GitHub</a>
+  </footer>
 </body>
 </html>

@@ -61,6 +61,7 @@ func New(cfg *config.Config, r Renderer, p Pages, version string) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", s.handleHealth)
 	mux.HandleFunc("GET /version", s.handleVersion)
+	mux.HandleFunc("GET /favicon.ico", s.handleFavicon)
 	mux.HandleFunc("GET /{$}", s.handleIndex)
 	mux.HandleFunc("GET /{kind}/{$}", s.handleImage)
 	mux.HandleFunc("GET /{kind}/{size}/{$}", s.handleImage)

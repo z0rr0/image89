@@ -221,4 +221,8 @@ Gotchas:
   `docs/figures.md`, with a link from README. README and these docs follow selected ASD-STE100 writing rules
   (the approved dictionary is not required) for readers with technical English: sentences up to 20 words in procedures and 25 in descriptions, active voice,
   imperative steps, one term for one meaning (`figure` is the shape, `type` is its name in `-t` and the URL).
+- Info pages (`internal/pages/templates/info/*.html`) keep the narrative voice of the history, but use no idioms,
+  no evaluative words without a fact and no sentence over 30 words. `TestInfoPages` allows 300–500 words in `<main>`
+  of a page, without HTML tags and MathML blocks. `docs/images/index.png` and `info.png` show the text of `index.html` and the top of
+  `mandelbrot.html`: change that text together with the screenshots.
 - Save important notes to this file `AGENTS.md` if it is relevant to the codebase or project.

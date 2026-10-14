@@ -4,7 +4,7 @@
 <p><img src="/newton/640x480/" width="640" height="480" alt="The Newton fractal of z³ − 1"></p>
 
 <p>Newton's method finds a root of a function: start somewhere, follow the tangent line down to zero
-and repeat. Near a root it is very fast, as every step roughly doubles the number of correct digits.
+and repeat. Near a root it is very fast: every step roughly doubles the number of correct digits.
 The step is</p>
 
 <math display="block">
@@ -36,15 +36,15 @@ The step is</p>
   <mi>k</mi><mo>=</mo><mn>0</mn><mo>,</mo><mo>…</mo><mo>,</mo><mi>d</mi><mo>−</mo><mn>1</mn>
 </math>
 
-<p>Color every start point by the root it reaches, and the plane splits into basins with strangely
-tangled borders.</p>
+<p>Color every start point by the root it reaches, and the plane splits into basins with tangled
+borders.</p>
 
 <h2>History</h2>
 <p>Isaac Newton described the method around 1669, and Joseph Raphson published a simpler form in 1690.
 In 1879 Arthur Cayley asked which root the method finds from a given complex start point. For two roots
 he found a clean answer: every point goes to the nearer root, and the border is a straight line. Three
-roots, he wrote, presented considerable difficulty. The answer had to wait for computers: in the early
-1980s, a century after Cayley, pictures of the basins showed that their borders are fractals.</p>
+roots, he wrote, presented considerable difficulty. In the early 1980s computer pictures of the basins
+showed that their borders are fractals.</p>
 
 <h2>Interesting facts</h2>
 <ul>
@@ -52,22 +52,22 @@ roots, he wrote, presented considerable difficulty. The answer had to wait for c
 there are start points that reach every root.</li>
 <li>The borders form the Julia set of the step itself, the rational function
 ((<i>d</i> − 1)<i>z</i><sup><i>d</i></sup> + 1) / (<i>d</i> <i>z</i><sup><i>d</i> − 1</sup>).</li>
-<li>The picture has the symmetry of the roots: a turn by a <i>d</i>-th of a full circle maps it onto
-itself, and so does a mirror in the real axis.</li>
+<li>The picture has the symmetry of the roots. A turn by 1/<i>d</i> of a full circle maps it onto
+itself, and so does a reflection in the real axis.</li>
 <li>At the origin the derivative is zero: the tangent is horizontal and never reaches zero, so the step
 is undefined there.</li>
-<li>In 2001 Hubbard, Dierk Schleicher and Scott Sutherland showed that for every polynomial of
-degree <i>d</i> with all roots in the unit disk a fixed set of about 1.1·<i>d</i>·(log <i>d</i>)²
-start points is enough to find all its roots.</li>
+<li>In 2001 Hubbard, Dierk Schleicher and Scott Sutherland found a fixed set of about
+1.1·<i>d</i>·(log <i>d</i>)² start points for degree <i>d</i>. From these points the method finds all
+roots of every polynomial of degree <i>d</i> whose roots lie in the unit disk.</li>
 </ul>
 
 <h2>How Image89 draws it</h2>
 <p>Image89 uses <i>d</i> = 3 by default; the preset allows degrees from 3 to 8. The view is a 4 × 4
 square around the origin. Every pixel center starts the method, which stops when
 |<i>z</i><sup><i>d</i></sup> − 1| or the last step is below 10<sup>−6</sup>, or after 64 steps. The
-nearest root by angle picks the color, and the more steps a point takes, the closer its color comes to
-the black background, at most three quarters of the way. Points that reach no root, like the origin,
-take the background itself. The preset lives in the <code>[types.newton]</code> section of the
+nearest root by angle gives the color. The more steps a point takes, the closer its color comes to the
+black background, at most three quarters of the way. Points that reach no root, like the origin,
+take the background itself. The preset is in the <code>[types.newton]</code> section of the
 config.</p>
 
 <h2>Examples</h2>
